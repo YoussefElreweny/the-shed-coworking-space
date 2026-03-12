@@ -219,6 +219,8 @@ async function startServer() {
     res.json({ total, today, upcoming });
   });
 
+
+
   // ── Vite / static ──────────────────────────────────────────────────────────
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -232,6 +234,28 @@ async function startServer() {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
+
+  // ── Database Maintenance (Daily) ──────────────────────────────────────────
+  function performMaintenance() {
+    console.log('🧹 Running database maintenance...');
+    try {
+      // Delete bookings older than 1 year
+      const result = db.prepare("DELETE FROM bookings WHERE start_time < datetime('now', '-1 year')").run();
+      if (result.changes > 0) {
+        console.log(`🗑️ Deleted ${result.changes} old bookings.`);
+        db.exec('VACUUM');
+        console.log('✨ Database vacuumed.');
+      } else {
+        console.log('✅ No old bookings to delete.');
+      }
+    } catch (err) {
+      console.error('❌ Maintenance failed:', err);
+    }
+  }
+
+  // Run on startup and every 24 hours
+  performMaintenance();
+  setInterval(performMaintenance, 1000 * 60 * 60 * 24);
 
   const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
   server.listen(PORT, '0.0.0.0', () => {

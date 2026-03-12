@@ -13,6 +13,7 @@ import {
   Wifi,
   Coffee,
   Monitor,
+  Settings,
 } from 'lucide-react';
 import {
   format,
@@ -565,6 +566,27 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+ 
+      <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-black/5 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm">
+        <div className="text-black/40">
+          Developed by{' '}
+          <a
+            href="https://www.smartbitseg.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-black font-semibold hover:underline"
+          >
+            Youssef Elreweny
+          </a>
+        </div>
+        <a
+          href="/admin"
+          className="flex items-center gap-2 px-4 py-2 bg-black/5 hover:bg-black/10 rounded-xl font-medium transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+          Admin Portal
+        </a>
+      </footer>
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
