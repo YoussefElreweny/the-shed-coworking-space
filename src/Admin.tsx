@@ -249,7 +249,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         }
     };
 
-    // Group bookings by date
+    // Group and Merge bookings by date
     const grouped = bookings.reduce<Record<string, AdminBooking[]>>((acc, b) => {
         const key = b.start_time.slice(0, 10);
         if (!acc[key]) acc[key] = [];
@@ -257,7 +257,39 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         return acc;
     }, {});
 
+    // Sort dates and merge consecutive bookings within each day
     const sortedDates = Object.keys(grouped).sort();
+    
+    sortedDates.forEach(date => {
+        const dayBookings = grouped[date].sort((a, b) => 
+            parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime()
+        );
+        
+        const merged: AdminBooking[] = [];
+        dayBookings.forEach(current => {
+            if (merged.length === 0) {
+                merged.push({ ...current });
+                return;
+            }
+            
+            const last = merged[merged.length - 1];
+            
+            // Criteria for merging: same room, same user, same phone, back-to-back
+            const isSameRoom = last.room_id === current.room_id;
+            const isSameUser = last.user_name === current.user_name;
+            const isSamePhone = last.phone === current.phone;
+            const isConsecutive = last.end_time === current.start_time;
+            
+            if (isSameRoom && isSameUser && isSamePhone && isConsecutive) {
+                // Extend the last merged booking
+                last.end_time = current.end_time;
+            } else {
+                merged.push({ ...current });
+            }
+        });
+        
+        grouped[date] = merged;
+    });
 
     return (
         <div className="min-h-screen bg-[#F5F5F3]">

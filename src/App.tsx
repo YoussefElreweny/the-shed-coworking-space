@@ -30,6 +30,7 @@ import {
   isBefore,
   parseISO,
   addHours,
+  addMinutes,
 } from 'date-fns';
 import { Room, Booking } from './types';
 import { cn } from './lib/utils';
@@ -48,13 +49,23 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Booking modal state
-  const [pendingSlot, setPendingSlot] = useState<Date | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<Date[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userName, setUserName] = useState('');
   const [phone, setPhone] = useState('');
 
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // ── Refs for scrolling ──────────────────────────────────────────────────
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // ── Auto-scroll to top when room is selected ───────────────────────────
+  useEffect(() => {
+    if (selectedRoom) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [selectedRoom]);
 
   // ── Fetch rooms once ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -114,25 +125,38 @@ export default function App() {
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    for (let i = 10; i <= 21; i++) {
+    // 9 AM to 12 AM (24:00) in 30-minute increments
+    for (let i = 9; i <= 23; i++) {
       slots.push(setMinutes(setHours(new Date(), i), 0));
+      slots.push(setMinutes(setHours(new Date(), i), 30));
     }
     return slots;
   }, []);
 
   const isSlotBooked = (time: Date) => {
     if (!selectedRoom) return false;
-    return bookings.some(
-      (b) =>
-        b.room_id === selectedRoom.id &&
-        isSameDay(parseISO(b.start_time), time) &&
-        parseISO(b.start_time).getHours() === time.getHours()
-    );
+    const timeMs = time.getTime();
+    return bookings.some((b) => {
+      if (b.room_id !== selectedRoom.id) return false;
+      const startMs = parseISO(b.start_time).getTime();
+      const endMs = parseISO(b.end_time).getTime();
+      return timeMs >= startMs && timeMs < endMs;
+    });
   };
 
-  // ── Open modal for a specific slot ────────────────────────────────────────
-  const openBookingModal = (slot: Date) => {
-    setPendingSlot(slot);
+  // ── Toggle slot selection ───────────────────────────────────────────────
+  const toggleSlot = (slot: Date) => {
+    setSelectedSlots((prev) => {
+      const exists = prev.find((s) => s.getTime() === slot.getTime());
+      if (exists) {
+        return prev.filter((s) => s.getTime() !== slot.getTime());
+      }
+      return [...prev, slot].sort((a, b) => a.getTime() - b.getTime());
+    });
+  };
+
+  const openBookingModal = () => {
+    if (selectedSlots.length === 0) return;
     setIsModalOpen(true);
     setBookingStatus('idle');
     setErrorMsg('');
@@ -140,14 +164,38 @@ export default function App() {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    setPendingSlot(null);
+  };
+
+  // ── Helper to group consecutive slots ─────────────────────────────────────
+  const getBookingRanges = (dates: Date[]) => {
+    if (dates.length === 0) return [];
+    
+    const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+    const ranges: { start: Date; end: Date }[] = [];
+    
+    let currentStart = sorted[0];
+    let currentEnd = addMinutes(sorted[0], 30);
+    
+    for (let i = 1; i < sorted.length; i++) {
+      const date = sorted[i];
+      if (date.getTime() === currentEnd.getTime()) {
+        // Consecutive (30 mins later)
+        currentEnd = addMinutes(date, 30);
+      } else {
+        // Gap reached
+        ranges.push({ start: currentStart, end: currentEnd });
+        currentStart = date;
+        currentEnd = addMinutes(date, 30);
+      }
+    }
+    ranges.push({ start: currentStart, end: currentEnd });
+    return ranges;
   };
 
   // ── Submit the booking ────────────────────────────────────────────────────
   const handleConfirmBooking = async () => {
-    if (!selectedRoom || !pendingSlot || !userName || !phone) return;
+    if (!selectedRoom || selectedSlots.length === 0 || !userName || !phone) return;
 
-    const endTime = addHours(pendingSlot, 1);
     setBookingStatus('loading');
     setErrorMsg('');
 
@@ -156,35 +204,56 @@ export default function App() {
         throw new Error('Please fill in all fields.');
       }
 
-      // Validates Egyptian mobile numbers: 010, 011, 012, 015 followed by 8 digits.
       const phoneRegex = /^01[0125]\d{8}$/;
       if (!phoneRegex.test(phone.trim())) {
         throw new Error('Please enter a valid Egyptian mobile number (e.g., 01012345678).');
       }
 
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          room_id: selectedRoom.id,
-          user_name: userName,
-          phone,
-          start_time: pendingSlot.toISOString(),
-          end_time: endTime.toISOString(),
-        }),
+      const ranges = getBookingRanges(selectedSlots);
+      
+      // Validation: Check if total duration is less than 1 hour (2 slots of 30 mins)
+      if (selectedSlots.length < 2) {
+        throw new Error('Minimum booking duration is 1 hour (2 slots).');
+      }
+
+      // Optional: Check if any range is exactly 30 mins (though with toggle, they can book 1h in one room and 1h in another)
+      // The requirement says "no one 30 min is available like the min is 1 hour".
+      // This usually means any contiguous block must be >= 1h.
+      const hasShortRange = ranges.some(r => {
+        const duration = (r.end.getTime() - r.start.getTime()) / (1000 * 60);
+        return duration < 60;
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Booking failed');
+      if (hasShortRange) {
+        throw new Error('Each booking block must be at least 1 hour.');
+      }
+      
+      // We'll perform all bookings. For simplicity, we'll do them sequentially.
+      // In a more robust system, you might want to do them in parallel or have a bulk API.
+      for (const range of ranges) {
+        const res = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_id: selectedRoom.id,
+            user_name: userName,
+            phone,
+            start_time: range.start.toISOString(),
+            end_time: range.end.toISOString(),
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Booking failed');
+        }
       }
 
       setBookingStatus('success');
       setTimeout(() => {
         setIsModalOpen(false);
-        setPendingSlot(null);
+        setSelectedSlots([]);
         setBookingStatus('idle');
-        // keep name & phone so repeat bookings are easier
       }, 5000);
     } catch (err: any) {
       setBookingStatus('error');
@@ -245,6 +314,7 @@ export default function App() {
                     onClick={() => {
                       setSelectedRoom(room);
                       setSelectedDate(null);
+                      setSelectedSlots([]);
                     }}
                   >
                     <div className="aspect-[16/10] overflow-hidden">
@@ -366,7 +436,10 @@ export default function App() {
                       <button
                         key={day.toString()}
                         disabled={isPast}
-                        onClick={() => setSelectedDate(day)}
+                        onClick={() => {
+                          setSelectedDate(day);
+                          setSelectedSlots([]);
+                        }}
                         className={cn(
                           'aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all relative',
                           isSelected ? 'bg-black text-white shadow-xl scale-105 z-10' : 'hover:bg-black/5',
@@ -406,27 +479,30 @@ export default function App() {
 
                       <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
                         {timeSlots.map((slot) => {
-                          const fullSlot = setMinutes(setHours(selectedDate, slot.getHours()), 0);
+                          const fullSlot = setMinutes(setHours(selectedDate, slot.getHours()), slot.getMinutes());
                           const isBooked = isSlotBooked(fullSlot);
                           const isPast = isBefore(fullSlot, new Date());
-                          const endSlot = addHours(fullSlot, 1);
+                          const isSelected = selectedSlots.some(s => s.getTime() === fullSlot.getTime());
+                          const endSlot = addMinutes(fullSlot, 30);
 
                           return (
                             <button
                               key={slot.toString()}
                               disabled={isBooked || isPast}
-                              onClick={() => openBookingModal(fullSlot)}
+                              onClick={() => toggleSlot(fullSlot)}
                               className={cn(
                                 'w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between group',
                                 isBooked
                                   ? 'bg-black/5 border-transparent opacity-60 cursor-not-allowed'
                                   : isPast
                                     ? 'bg-black/5 border-transparent opacity-20 cursor-not-allowed'
-                                    : 'border-black/5 hover:border-black hover:bg-black hover:text-white'
+                                    : isSelected
+                                      ? 'bg-black border-black text-white shadow-lg scale-[1.02]'
+                                      : 'border-black/5 hover:border-black hover:bg-black hover:text-white'
                               )}
                             >
                               <div className="flex items-center gap-3">
-                                <Clock className="w-4 h-4 opacity-40 group-hover:opacity-100" />
+                                <Clock className={cn("w-4 h-4", isSelected ? "opacity-100" : "opacity-40 group-hover:opacity-100")} />
                                 <div>
                                   <span className="font-semibold text-sm">
                                     {format(slot, 'h:mm a')} – {format(endSlot, 'h:mm a')}
@@ -437,15 +513,38 @@ export default function App() {
                                 <span className="text-[10px] font-bold uppercase tracking-wider bg-black/10 px-2 py-1 rounded">
                                   Reserved
                                 </span>
+                              ) : isSelected ? (
+                                <CheckCircle2 className="w-4 h-4 text-white" />
                               ) : (
                                 <span className="text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                  Book
+                                  Select
                                 </span>
                               )}
                             </button>
                           );
                         })}
                       </div>
+
+                      {selectedSlots.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="pt-4 space-y-3"
+                        >
+                          {selectedSlots.length < 2 && (
+                            <p className="text-xs text-red-500 font-medium text-center bg-red-50 py-2 rounded-lg">
+                              Minimum booking is 1 hour (2 slots)
+                            </p>
+                          )}
+                          <button
+                            onClick={openBookingModal}
+                            disabled={selectedSlots.length < 2}
+                            className="w-full py-4 bg-black text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl disabled:opacity-40 disabled:hover:scale-100"
+                          >
+                            Book {selectedSlots.length * 0.5} Hours
+                          </button>
+                        </motion.div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -459,7 +558,7 @@ export default function App() {
           BOOKING MODAL
       ══════════════════════════════════════════════ */}
       <AnimatePresence>
-        {isModalOpen && pendingSlot && (
+        {isModalOpen && selectedSlots.length > 0 && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0 }}
@@ -489,20 +588,21 @@ export default function App() {
                   </div>
                   <h3 className="text-2xl font-bold">Booking Confirmed!</h3>
                   <p className="text-black/50">
-                    {selectedRoom?.name} on {format(pendingSlot, 'EEE, MMM do')} at{' '}
-                    {format(pendingSlot, 'h:mm a')} is reserved for <strong>{userName}</strong>.
+                    Your sessions in <strong>{selectedRoom?.name}</strong> have been reserved for <strong>{userName}</strong>.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-7">
                   <div>
                     <h3 className="text-3xl font-bold tracking-tight mb-1">Almost there.</h3>
-                    <p className="text-black/50 text-sm">
-                      Booking{' '}
-                      <strong>{selectedRoom?.name}</strong> on{' '}
-                      <strong>{format(pendingSlot, 'EEE, MMM do')}</strong> at{' '}
-                      <strong>{format(pendingSlot, 'h:mm a')}</strong>
-                    </p>
+                    <div className="text-black/50 text-sm space-y-1">
+                      <p>Booking <strong>{selectedRoom?.name}</strong> for:</p>
+                      {getBookingRanges(selectedSlots).map((range, idx) => (
+                        <p key={idx} className="font-semibold text-black">
+                          {format(range.start, 'EEE, MMM do')} · {format(range.start, 'h:mm a')} – {format(range.end, 'h:mm a')}
+                        </p>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -566,7 +666,46 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
- 
+
+      {/* ══════════════════════════════════════════════
+          SHARED AREA SECTION
+      ══════════════════════════════════════════════ */}
+      {!selectedRoom && (
+        <section className="max-w-7xl mx-auto px-6 py-20">
+          <div className="relative bg-black text-white rounded-[48px] p-8 md:p-16 overflow-hidden">
+            {/* Background pattern */}
+            <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
+              <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path d="M0 0 L100 0 L100 100 Z" fill="currentColor" />
+              </svg>
+            </div>
+
+            <div className="relative z-10 max-w-2xl">
+              <span className="inline-block px-4 py-1.5 bg-white/10 rounded-full text-xs font-bold uppercase tracking-widest mb-6">
+                No Booking Required
+              </span>
+              <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
+                Shared Area
+              </h2>
+              <p className="text-lg text-white/60 mb-10 leading-relaxed">
+                Looking for a more flexible way to work? Our Shared Area is perfect for digital nomads and students. Just walk in, find a spot, and focus.
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
+                  <div className="text-sm text-white/40 mb-1">Hourly Rate</div>
+                  <div className="text-3xl font-bold">25 EGP <span className="text-sm font-normal text-white/40">/ hr</span></div>
+                </div>
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
+                  <div className="text-sm text-white/40 mb-1">Full Day Pass</div>
+                  <div className="text-3xl font-bold">140 EGP <span className="text-sm font-normal text-white/40">/ day</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-black/5 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm">
         <div className="text-black/40">
           Developed by{' '}
