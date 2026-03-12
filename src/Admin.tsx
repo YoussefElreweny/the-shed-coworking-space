@@ -21,7 +21,7 @@ import { cn } from './lib/utils';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface AdminBooking {
-    id: number;
+    id: string | number;
     user_name: string;
     phone: string | null;
     start_time: string;
