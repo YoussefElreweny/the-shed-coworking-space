@@ -114,7 +114,7 @@ export default function App() {
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    for (let i = 8; i <= 21; i++) {
+    for (let i = 10; i <= 21; i++) {
       slots.push(setMinutes(setHours(new Date(), i), 0));
     }
     return slots;
