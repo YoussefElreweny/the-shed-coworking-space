@@ -12,5 +12,5 @@ A modern booking platform for The Shed coworking space. Choose from 4 unique roo
 ## Tech Stack
 
 - **Frontend:** React, Vite, Tailwind CSS, Framer Motion
-- **Backend:** Node.js, Express, Better-SQLite3
-- **Database:** SQLite
+- **Backend:** Node.js, Express
+- **Database:** Supabase
