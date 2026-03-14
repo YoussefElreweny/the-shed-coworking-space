@@ -35,6 +35,13 @@ import {
 import { Room, Booking } from './types';
 import { cn } from './lib/utils';
 
+const OLD_PRICES: Record<string, number> = {
+  'Cordia Room': 200,
+  'Meeting Room': 240,
+  'Shared Room': 320,
+  'Office Room': 130,
+};
+
 const AMENITIES = [
   { icon: Wifi, label: 'High-Speed WiFi' },
   { icon: Coffee, label: 'Coffee & Tea' },
@@ -335,6 +342,11 @@ export default function App() {
                           </div>
                         </div>
                         <div className="text-right shrink-0 ml-4">
+                          {OLD_PRICES[room.name] && (
+                            <span className="text-sm text-black/30 line-through block">
+                              {OLD_PRICES[room.name]} EGP
+                            </span>
+                          )}
                           <span className="text-2xl font-bold">{room.price}</span>
                           <span className="text-sm text-black/40"> EGP</span>
                           <span className="text-sm text-black/40 block">/ hour</span>
@@ -388,6 +400,11 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
+                    {OLD_PRICES[selectedRoom.name] && (
+                      <span className="text-xs text-black/30 line-through block mb-0.5">
+                        {OLD_PRICES[selectedRoom.name]} EGP
+                      </span>
+                    )}
                     <span className="text-2xl font-bold">{selectedRoom.price}</span>
                     <span className="text-sm text-black/40"> EGP / hr</span>
                   </div>
@@ -701,6 +718,65 @@ export default function App() {
                   <div className="text-3xl font-bold">140 EGP <span className="text-sm font-normal text-white/40">/ day</span></div>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Partnership Contact Form ── */}
+      {!selectedRoom && (
+        <section className="max-w-7xl mx-auto px-6 py-24 border-t border-black/5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+            <div>
+              <h2 className="text-5xl font-bold tracking-tighter mb-6">Partner with us.</h2>
+              <p className="text-xl text-black/60 leading-relaxed mb-8">
+                Looking for a long-term partnership or have a special offer for your organization? 
+                We're always open to collaborating with like-minded individuals and teams.
+              </p>
+            </div>
+
+            <div className="bg-white border border-black/10 rounded-[40px] p-10 shadow-xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full" />
+              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
+                    Your Name or Organization
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Acme Corp"
+                    className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="hello@example.com"
+                    className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
+                    How can we help?
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe your proposal or inquiry..."
+                    className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium resize-none"
+                  />
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-5 bg-black text-white rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 group"
+                >
+                  Find My Offer
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </motion.button>
+              </form>
             </div>
           </div>
         </section>
