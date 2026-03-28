@@ -501,22 +501,22 @@ export default function App() {
                 </button>
 
                 {/* Room mini card */}
-                <div className="flex items-center gap-6 p-6 bg-white border border-black/5 rounded-2xl">
-                  <div className="w-32 h-20 rounded-xl shrink-0 overflow-hidden relative">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 sm:gap-6 p-4 sm:p-6 bg-white border border-black/5 rounded-2xl">
+                  <div className="w-24 sm:w-32 h-20 rounded-xl shrink-0 overflow-hidden relative">
                      <RoomImageCarousel 
                         roomName={selectedRoom.name} 
                         images={ROOM_IMAGES[selectedRoom.name] || [selectedRoom.image_url]} 
                       />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-2xl font-bold tracking-tight">{selectedRoom.name}</h2>
+                  <div className="flex-1 min-w-[150px]">
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight line-clamp-1">{selectedRoom.name}</h2>
                     <div className="flex items-center gap-4 text-sm text-black/50 mt-1">
                       <span className="flex items-center gap-1.5">
                         <Users className="w-4 h-4" /> {selectedRoom.capacity} people
                       </span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="w-full sm:w-auto text-right shrink-0 mt-1 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-black/5">
                     {OLD_PRICES[selectedRoom.name] && (
                       <span className="text-xs text-black/30 line-through block mb-0.5">
                         {OLD_PRICES[selectedRoom.name]} EGP

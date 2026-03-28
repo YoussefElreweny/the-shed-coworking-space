@@ -14,8 +14,16 @@ import {
     RefreshCw,
     X,
     Settings,
+    ChevronLeft,
+    ChevronRight,
+    List,
+    CalendarDays,
 } from 'lucide-react';
-import { format, parseISO, isToday, isTomorrow, isPast } from 'date-fns';
+import { 
+    format, parseISO, isToday, isTomorrow, isPast,
+    startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
+    addMonths, subMonths, isSameMonth, isSameDay, startOfDay
+} from 'date-fns';
 import { cn } from './lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -68,6 +76,13 @@ const ROOM_COLORS: Record<number, string> = {
     3: 'bg-blue-100 text-blue-700',
     4: 'bg-emerald-100 text-emerald-700',
 };
+
+const ROOMS = [
+    { id: 1, name: 'Cordia Room', color: ROOM_COLORS[1] },
+    { id: 2, name: 'Meeting Room', color: ROOM_COLORS[2] },
+    { id: 3, name: 'Shared Room', color: ROOM_COLORS[3] },
+    { id: 4, name: 'Office Room', color: ROOM_COLORS[4] },
+];
 
 // ── Login Screen ─────────────────────────────────────────────────────────────
 
@@ -170,6 +185,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     const [passwordError, setPasswordError] = useState('');
     const [passwordSuccess, setPasswordSuccess] = useState(false);
 
+    // View Mode & Calendar State
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar');
+    const [calendarMonth, setCalendarMonth] = useState(startOfMonth(new Date()));
+    const [selectedDate, setSelectedDate] = useState<Date | null>(startOfDay(new Date()));
+    const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
@@ -260,6 +281,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     // Sort dates and merge consecutive bookings within each day
     const sortedDates = Object.keys(grouped).sort();
     
+    // Calendar specific variables
+    const handlePrevMonth = () => setCalendarMonth(subMonths(calendarMonth, 1));
+    const handleNextMonth = () => setCalendarMonth(addMonths(calendarMonth, 1));
+
+    const daysInterval = eachDayOfInterval({
+        start: startOfWeek(startOfMonth(calendarMonth)),
+        end: endOfWeek(endOfMonth(calendarMonth))
+    });
+
     sortedDates.forEach(date => {
         const dayBookings = grouped[date].sort((a, b) => 
             parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime()
@@ -360,130 +390,308 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                     </div>
                 )}
 
-                {/* Filters */}
-                <div className="bg-white rounded-2xl border border-black/5 p-4 sm:p-5 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-                    <p className="text-sm font-semibold text-black/40 sm:mr-auto">Filter bookings</p>
-
-                    <div className="relative">
-                        <select
-                            value={filterRoom}
-                            onChange={(e) => setFilterRoom(e.target.value)}
-                            className="appearance-none w-full sm:w-auto pl-4 pr-9 py-2.5 bg-black/5 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
+                {/* Filters & View Toggle */}
+                <div className="bg-white rounded-2xl border border-black/5 p-4 sm:p-5 flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-center justify-between">
+                    <div className="flex gap-2 bg-black/5 p-1 rounded-xl w-fit shrink-0">
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={cn('flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all', viewMode === 'list' ? 'bg-white shadow-sm text-black' : 'text-black/40 hover:text-black')}
                         >
-                            <option value="">All Rooms</option>
-                            <option value="1">Office Room</option>
-                            <option value="2">Shared Room</option>
-                            <option value="3">Meeting Room</option>
-                            <option value="4">Cordia Room</option>
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none text-black/40" />
+                            <List className="w-4 h-4" /> List
+                        </button>
+                        <button
+                            onClick={() => setViewMode('calendar')}
+                            className={cn('flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all', viewMode === 'calendar' ? 'bg-white shadow-sm text-black' : 'text-black/40 hover:text-black')}
+                        >
+                            <CalendarDays className="w-4 h-4" /> Calendar
+                        </button>
                     </div>
 
-                    <input
-                        type="date"
-                        value={filterDate}
-                        onChange={(e) => setFilterDate(e.target.value)}
-                        className="w-full sm:w-auto pl-4 pr-4 py-2.5 bg-black/5 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                        <div className="relative">
+                            <select
+                                value={filterRoom}
+                                onChange={(e) => setFilterRoom(e.target.value)}
+                                className="appearance-none w-full sm:w-auto pl-4 pr-9 py-2.5 bg-black/5 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
+                            >
+                                <option value="">All Rooms</option>
+                                {ROOMS.map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none text-black/40" />
+                        </div>
 
-                    {(filterRoom || filterDate) && (
-                        <button
-                            onClick={() => { setFilterRoom(''); setFilterDate(''); }}
-                            className="flex items-center gap-1.5 text-sm text-black/40 hover:text-black transition-colors px-3 py-2.5 rounded-xl hover:bg-black/5"
-                        >
-                            <X className="w-3.5 h-3.5" /> Clear
-                        </button>
-                    )}
+                        <input
+                            type="date"
+                            value={filterDate}
+                            onChange={(e) => setFilterDate(e.target.value)}
+                            className="w-full sm:w-auto pl-4 pr-4 py-2.5 bg-black/5 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
+                        />
+
+                        {(filterRoom || filterDate) && (
+                            <button
+                                onClick={() => { setFilterRoom(''); setFilterDate(''); }}
+                                className="flex items-center gap-1.5 text-sm text-black/40 hover:text-black transition-colors px-3 py-2.5 rounded-xl hover:bg-black/5"
+                            >
+                                <X className="w-3.5 h-3.5" /> Clear
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Bookings list */}
+                {/* Bookings list / Calendar view */}
                 {loading ? (
                     <div className="flex items-center justify-center py-24">
                         <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin" />
                     </div>
-                ) : sortedDates.length === 0 ? (
-                    <div className="bg-white rounded-2xl border border-black/5 flex flex-col items-center justify-center py-24 text-center">
-                        <Calendar className="w-10 h-10 text-black/10 mb-4" />
-                        <p className="font-semibold text-black/40">No bookings found</p>
-                        <p className="text-sm text-black/30 mt-1">Try adjusting your filters</p>
-                    </div>
-                ) : (
-                    <div className="space-y-6">
-                        {sortedDates.map((date) => (
-                            <div key={date}>
-                                <div className="flex items-center gap-3 mb-3">
-                                    <h2 className="font-bold text-sm text-black/50 uppercase tracking-wider">
-                                        {dayLabel(grouped[date][0].start_time)}
-                                    </h2>
-                                    <span className="text-xs bg-black/10 text-black/50 rounded-full px-2 py-0.5 font-semibold">
-                                        {grouped[date].length} booking{grouped[date].length !== 1 ? 's' : ''}
-                                    </span>
-                                </div>
+                ) : viewMode === 'list' ? (
+                    sortedDates.length === 0 ? (
+                        <div className="bg-white rounded-2xl border border-black/5 flex flex-col items-center justify-center py-24 text-center">
+                            <Calendar className="w-10 h-10 text-black/10 mb-4" />
+                            <p className="font-semibold text-black/40">No bookings found</p>
+                            <p className="text-sm text-black/30 mt-1">Try adjusting your filters</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {sortedDates.map((date) => (
+                                <div key={date}>
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <h2 className="font-bold text-sm text-black/50 uppercase tracking-wider">
+                                            {dayLabel(grouped[date][0].start_time)}
+                                        </h2>
+                                        <span className="text-xs bg-black/10 text-black/50 rounded-full px-2 py-0.5 font-semibold">
+                                            {grouped[date].length} booking{grouped[date].length !== 1 ? 's' : ''}
+                                        </span>
+                                    </div>
 
-                                <div className="space-y-2">
-                                    {grouped[date].map((b) => {
-                                        const past = isPast(parseISO(b.end_time));
+                                    <div className="space-y-2">
+                                        {grouped[date].map((b) => {
+                                            const past = isPast(parseISO(b.end_time));
+                                            return (
+                                                <motion.div
+                                                    key={b.id}
+                                                    initial={{ opacity: 0, y: 8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, x: -20 }}
+                                                    className={cn(
+                                                        'relative bg-white rounded-2xl border border-black/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 transition-opacity',
+                                                        past && 'opacity-50'
+                                                    )}
+                                                >
+                                                    {/* Room pill */}
+                                                    <span className={cn(
+                                                        'text-xs font-bold px-3 py-1.5 rounded-full shrink-0',
+                                                        ROOM_COLORS[b.room_id] || 'bg-gray-100 text-gray-600'
+                                                    )}>
+                                                        {b.room_name}
+                                                    </span>
+
+                                                    {/* Time */}
+                                                    <div className="flex items-center gap-1.5 text-sm font-semibold shrink-0">
+                                                        <Clock className="w-3.5 h-3.5 text-black/30" />
+                                                        {format(parseISO(b.start_time), 'h:mm a')} – {format(parseISO(b.end_time), 'h:mm a')}
+                                                    </div>
+
+                                                    {/* Name */}
+                                                    <div className="flex items-center gap-1.5 text-sm font-medium text-black/70 min-w-0">
+                                                        <User className="w-3.5 h-3.5 text-black/30 shrink-0" />
+                                                        <span className="truncate">{b.user_name}</span>
+                                                    </div>
+
+                                                    {/* Phone */}
+                                                    {b.phone && (
+                                                        <div className="flex items-center gap-1.5 text-sm text-black/50 shrink-0">
+                                                            <Phone className="w-3.5 h-3.5" />
+                                                            {b.phone}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Past badge */}
+                                                    {past && (
+                                                        <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-black/30 bg-black/5 px-2 py-1 rounded shrink-0">
+                                                            Done
+                                                        </span>
+                                                    )}
+
+                                                    {/* Cancel */}
+                                                    <button
+                                                        onClick={() => setConfirmDelete(b)}
+                                                        className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto sm:ml-auto shrink-0 p-2 text-black/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                        title="Cancel booking"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
+                ) : (
+                    <div className="space-y-8">
+                        {/* Calendar Grid */}
+                        <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+                            <div className="flex items-center justify-between p-5 border-b border-black/5">
+                                <h2 className="text-xl font-bold">{format(calendarMonth, 'MMMM yyyy')}</h2>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={handlePrevMonth} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+                                        <ChevronLeft className="w-5 h-5 text-black/60" />
+                                    </button>
+                                    <button onClick={handleNextMonth} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+                                        <ChevronRight className="w-5 h-5 text-black/60" />
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-7 border-b border-black/5 bg-black/[0.02]">
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                                    <div key={day} className="py-3 text-center text-[10px] font-bold uppercase tracking-wider text-black/40">
+                                        {day}
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div className="grid grid-cols-7 pb-2 px-2 gap-1 mt-2">
+                                {daysInterval.map((day, i) => {
+                                    const dateKey = format(day, 'yyyy-MM-dd');
+                                    const dayBookings = grouped[dateKey] || [];
+                                    const isCurrentMonth = isSameMonth(day, calendarMonth);
+                                    const isSelected = selectedDate && isSameDay(day, selectedDate);
+                                    
+                                    // Get unique colors for dots based on booked rooms that day
+                                    const bookedRoomIds = Array.from(new Set(dayBookings.map(b => b.room_id as number)));
+
+                                    return (
+                                        <button
+                                            key={day.toISOString()}
+                                            onClick={() => { setSelectedDate(day); setSelectedRoomId(null); }}
+                                            className={cn(
+                                                'min-h-[100px] p-1.5 flex flex-col items-center rounded-xl transition-all cursor-pointer relative',
+                                                isCurrentMonth ? 'text-black' : 'text-black/30',
+                                                isSelected ? 'bg-black/5 ring-2 ring-black shadow-sm' : 'hover:bg-black/5'
+                                            )}
+                                        >
+                                            <span className={cn('text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1', isToday(day) && !isSelected && 'bg-black text-white', isSelected && 'bg-black text-white')}>
+                                                {format(day, 'd')}
+                                            </span>
+                                            {dayBookings.length > 0 && (
+                                                <div className="flex flex-col gap-[2px] w-full overflow-hidden text-left mt-0.5">
+                                                    {dayBookings.slice(0, 3).map(b => (
+                                                        <div key={b.id} className={cn('text-[8px] sm:text-[9px] leading-tight font-semibold truncate px-1 py-[2px] sm:py-0.5 rounded-[3px]', ROOM_COLORS[b.room_id] || 'bg-black/5 text-black')}>
+                                                            {format(parseISO(b.start_time), 'H:mm')} {b.room_name}
+                                                        </div>
+                                                    ))}
+                                                    {dayBookings.length > 3 && (
+                                                        <div className="text-[8px] sm:text-[10px] font-bold text-black/40 text-center mt-0.5">
+                                                            +{dayBookings.length - 3} more
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Selected Date Details */}
+                        {selectedDate && (
+                            <div className="space-y-6">
+                                <h3 className="text-xl font-bold flex items-center gap-2">
+                                    <CalendarDays className="w-5 h-5 text-black/40" />
+                                    {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+                                </h3>
+                                
+                                {/* Room Selection Cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {ROOMS.map(room => {
+                                        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+                                        const roomBookings = (grouped[dateStr] || []).filter(b => b.room_id === room.id);
+                                        const isSelected = selectedRoomId === room.id;
+                                        
                                         return (
-                                            <motion.div
-                                                key={b.id}
-                                                layout
-                                                initial={{ opacity: 0, y: 8 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, x: -20 }}
+                                            <button
+                                                key={room.id}
+                                                onClick={() => setSelectedRoomId(isSelected ? null : room.id)}
                                                 className={cn(
-                                                    'relative bg-white rounded-2xl border border-black/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 transition-opacity',
-                                                    past && 'opacity-50'
+                                                    'p-5 rounded-2xl border text-left transition-all',
+                                                    isSelected ? 'border-black bg-white shadow-xl scale-[1.02]' : 'border-black/5 bg-white hover:border-black/20 hover:bg-black/[0.01]'
                                                 )}
                                             >
-                                                {/* Room pill */}
-                                                <span className={cn(
-                                                    'text-xs font-bold px-3 py-1.5 rounded-full shrink-0',
-                                                    ROOM_COLORS[b.room_id] || 'bg-gray-100 text-gray-600'
-                                                )}>
-                                                    {b.room_name}
-                                                </span>
-
-                                                {/* Time */}
-                                                <div className="flex items-center gap-1.5 text-sm font-semibold shrink-0">
-                                                    <Clock className="w-3.5 h-3.5 text-black/30" />
-                                                    {format(parseISO(b.start_time), 'h:mm a')} – {format(parseISO(b.end_time), 'h:mm a')}
-                                                </div>
-
-                                                {/* Name */}
-                                                <div className="flex items-center gap-1.5 text-sm font-medium text-black/70 min-w-0">
-                                                    <User className="w-3.5 h-3.5 text-black/30 shrink-0" />
-                                                    <span className="truncate">{b.user_name}</span>
-                                                </div>
-
-                                                {/* Phone */}
-                                                {b.phone && (
-                                                    <div className="flex items-center gap-1.5 text-sm text-black/50 shrink-0">
-                                                        <Phone className="w-3.5 h-3.5" />
-                                                        {b.phone}
-                                                    </div>
-                                                )}
-
-                                                {/* Past badge */}
-                                                {past && (
-                                                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-black/30 bg-black/5 px-2 py-1 rounded shrink-0">
-                                                        Done
-                                                    </span>
-                                                )}
-
-                                                {/* Cancel */}
-                                                <button
-                                                    onClick={() => setConfirmDelete(b)}
-                                                    className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto sm:ml-auto shrink-0 p-2 text-black/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                                    title="Cancel booking"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </motion.div>
+                                                <h4 className="font-bold mb-1">{room.name}</h4>
+                                                <p className={cn('text-sm font-medium px-2 py-0.5 rounded-md inline-block', roomBookings.length > 0 ? room.color : 'bg-black/5 text-black/40')}>
+                                                    {roomBookings.length} booking{roomBookings.length !== 1 ? 's' : ''}
+                                                </p>
+                                            </button>
                                         );
                                     })}
                                 </div>
+                                
+                                {/* Bookings For Selected Room */}
+                                {selectedRoomId !== null && (
+                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 pt-2">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <h4 className="font-bold text-black/60">
+                                                Bookings for {ROOMS.find(r => r.id === selectedRoomId)?.name}
+                                            </h4>
+                                        </div>
+                                        
+                                        {(() => {
+                                            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+                                            const roomBookings = (grouped[dateStr] || []).filter(b => b.room_id === selectedRoomId);
+                                            
+                                            if (roomBookings.length === 0) {
+                                                return (
+                                                    <div className="bg-white/50 rounded-2xl border border-dashed border-black/10 py-12 text-center text-black/40 text-sm font-medium">
+                                                        No bookings for this room.
+                                                    </div>
+                                                );
+                                            }
+                                            
+                                            return roomBookings.map(b => {
+                                                const past = isPast(parseISO(b.end_time));
+                                                return (
+                                                    <div key={b.id} className={cn("relative bg-white rounded-2xl border border-black/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 transition-opacity", past && 'opacity-50')}>
+                                                        <div className="flex items-center gap-1.5 text-sm font-bold w-32 shrink-0">
+                                                            <Clock className="w-3.5 h-3.5 text-black/40" />
+                                                            {format(parseISO(b.start_time), 'h:mm a')}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-sm font-bold w-32 shrink-0 text-black/40">
+                                                            {format(parseISO(b.end_time), 'h:mm a')}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-sm font-medium text-black/80 min-w-0">
+                                                            <User className="w-4 h-4 text-black/30 shrink-0" />
+                                                            <span className="truncate">{b.user_name}</span>
+                                                        </div>
+                                                        {b.phone && (
+                                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-black/50 bg-black/5 px-2.5 py-1.5 rounded-lg shrink-0">
+                                                                <Phone className="w-3.5 h-3.5" />
+                                                                {b.phone}
+                                                            </div>
+                                                        )}
+                                                        {past && (
+                                                            <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-black/30 bg-black/5 px-2 py-1 rounded shrink-0">
+                                                                Done
+                                                            </span>
+                                                        )}
+                                                        <button
+                                                            onClick={() => setConfirmDelete(b)}
+                                                            className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto sm:ml-auto shrink-0 p-2 text-black/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                            title="Cancel booking"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </motion.div>
+                                )}
                             </div>
-                        ))}
+                        )}
                     </div>
                 )}
             </main>
