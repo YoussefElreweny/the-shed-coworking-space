@@ -24,6 +24,9 @@ import {
     startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
     addMonths, subMonths, isSameMonth, isSameDay, startOfDay
 } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
+import { useLanguage } from './LanguageContext';
+import { t } from './translations';
 import { cn } from './lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -63,11 +66,12 @@ function adminFetch(url: string, options: RequestInit = {}) {
     });
 }
 
-function dayLabel(dateStr: string) {
+function dayLabel(dateStr: string, lang: 'en' | 'ar') {
     const d = parseISO(dateStr);
-    if (isToday(d)) return 'Today';
-    if (isTomorrow(d)) return 'Tomorrow';
-    return format(d, 'EEE, MMM d');
+    const locale = lang === 'ar' ? ar : enUS;
+    if (isToday(d)) return lang === 'ar' ? 'اليوم' : 'Today';
+    if (isTomorrow(d)) return lang === 'ar' ? 'غداً' : 'Tomorrow';
+    return format(d, 'EEE, MMM d', { locale });
 }
 
 const ROOM_COLORS: Record<number, string> = {
@@ -78,10 +82,10 @@ const ROOM_COLORS: Record<number, string> = {
 };
 
 const ROOMS = [
-    { id: 1, name: 'Cordia Room', color: ROOM_COLORS[1] },
-    { id: 2, name: 'Meeting Room', color: ROOM_COLORS[2] },
-    { id: 3, name: 'Shared Room', color: ROOM_COLORS[3] },
-    { id: 4, name: 'Office Room', color: ROOM_COLORS[4] },
+    { id: 1, name: 'Office Room', color: ROOM_COLORS[1] },
+    { id: 2, name: 'Shared Room', color: ROOM_COLORS[2] },
+    { id: 3, name: 'Meeting Room', color: ROOM_COLORS[3] },
+    { id: 4, name: 'Cordia Room', color: ROOM_COLORS[4] },
 ];
 
 // ── Login Screen ─────────────────────────────────────────────────────────────
@@ -89,6 +93,7 @@ const ROOMS = [
 function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
     const [password, setPassword] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+    const { lang } = useLanguage();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -119,13 +124,13 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
                 {/* Logo */}
                 <div className="flex items-center gap-3 mb-10">
                     <div>
-                        <p className="font-semibold text-sm leading-none">The Shed</p>
-                        <p className="text-xs text-black/40">Admin Panel</p>
+                        <p className="font-semibold text-sm leading-none">{t(lang, 'app', 'title') as string}</p>
+                        <p className="text-xs text-black/40">{t(lang, 'admin', 'panel')}</p>
                     </div>
                 </div>
 
-                <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back.</h1>
-                <p className="text-black/50 mb-8 text-sm">Enter your admin password to continue.</p>
+                <h1 className="text-3xl font-bold tracking-tight mb-2">{t(lang, 'admin', 'welcomeBack')}</h1>
+                <p className="text-black/50 mb-8 text-sm">{t(lang, 'admin', 'enterPassword')}</p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <input
@@ -133,13 +138,13 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Admin password"
+                        placeholder={t(lang, 'admin', 'passwordPlaceholder')}
                         className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
                     />
 
                     {status === 'error' && (
                         <p className="text-red-500 text-sm font-medium bg-red-50 px-4 py-3 rounded-xl">
-                            Wrong password. Try again.
+                            {t(lang, 'admin', 'wrongPassword')}
                         </p>
                     )}
 
@@ -152,14 +157,14 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
                             <>
-                                <LogIn className="w-4 h-4" /> Sign In
+                                <LogIn className={cn("w-4 h-4", lang === 'ar' && "rotate-180")} /> {t(lang, 'admin', 'signIn')}
                             </>
                         )}
                     </button>
                 </form>
 
                 <p className="text-center mt-8 text-xs text-black/30">
-                    <a href="/" className="hover:text-black transition-colors">← Back to booking page</a>
+                    <a href="/" className="hover:text-black transition-colors">{t(lang, 'admin', 'backToBooking')}</a>
                 </p>
             </motion.div>
         </div>
@@ -169,6 +174,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
+    const { lang, setLang } = useLanguage();
     const [bookings, setBookings] = useState<AdminBooking[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -328,14 +334,20 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-3">
                         <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">The Shed</span>
+                            <span className="font-semibold text-sm">{t(lang, 'app', 'title') as string}</span>
                             <span className="text-black/20">/</span>
                             <span className="flex items-center gap-1.5 text-sm text-black/50 font-medium">
-                                <LayoutDashboard className="w-3.5 h-3.5" /> Admin
+                                <LayoutDashboard className="w-3.5 h-3.5" /> {t(lang, 'admin', 'panel')}
                             </span>
                         </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-3">
+                        <button
+                            onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+                            className="text-sm font-semibold hover:bg-black/5 rounded-lg px-2 py-1.5 transition-colors text-black/50 hover:text-black cursor-pointer mr-2"
+                        >
+                            {lang === 'en' ? 'العربية' : 'EN'}
+                        </button>
                         <button
                             onClick={fetchData}
                             className="p-2 hover:bg-black/5 rounded-full transition-colors text-black/40 hover:text-black"
@@ -352,7 +364,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                 setNewPassword('');
                             }}
                             className="p-2 hover:bg-black/5 rounded-full transition-colors text-black/40 hover:text-black"
-                            title="Settings"
+                            title={t(lang, 'admin', 'settings')}
                         >
                             <Settings className="w-4 h-4" />
                         </button>
@@ -360,13 +372,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             href="/"
                             className="hidden sm:inline-block text-sm text-black/40 hover:text-black transition-colors px-3 py-1.5 rounded-lg hover:bg-black/5"
                         >
-                            View site
+                            {t(lang, 'admin', 'viewSite')}
                         </a>
                         <button
                             onClick={handleLogout}
                             className="flex items-center gap-2 text-sm font-medium px-3 sm:px-4 py-2 rounded-xl bg-black/5 hover:bg-black hover:text-white transition-all"
                         >
-                            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span>
+                            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">{t(lang, 'admin', 'logout')}</span>
                         </button>
                     </div>
                 </div>
@@ -458,7 +470,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                 <div key={date}>
                                     <div className="flex items-center gap-3 mb-3">
                                         <h2 className="font-bold text-sm text-black/50 uppercase tracking-wider">
-                                            {dayLabel(grouped[date][0].start_time)}
+                                            {dayLabel(grouped[date][0].start_time, lang)}
                                         </h2>
                                         <span className="text-xs bg-black/10 text-black/50 rounded-full px-2 py-0.5 font-semibold">
                                             {grouped[date].length} booking{grouped[date].length !== 1 ? 's' : ''}
@@ -484,13 +496,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                                         'text-xs font-bold px-3 py-1.5 rounded-full shrink-0',
                                                         ROOM_COLORS[b.room_id] || 'bg-gray-100 text-gray-600'
                                                     )}>
-                                                        {b.room_name}
+                                                        {t(lang, 'rooms', b.room_name as any) || b.room_name}
                                                     </span>
 
                                                     {/* Time */}
                                                     <div className="flex items-center gap-1.5 text-sm font-semibold shrink-0">
                                                         <Clock className="w-3.5 h-3.5 text-black/30" />
-                                                        {format(parseISO(b.start_time), 'h:mm a')} – {format(parseISO(b.end_time), 'h:mm a')}
+                                                        {format(parseISO(b.start_time), 'h:mm a', { locale: lang === 'ar' ? ar : enUS })} – {format(parseISO(b.end_time), 'h:mm a', { locale: lang === 'ar' ? ar : enUS })}
                                                     </div>
 
                                                     {/* Name */}
@@ -535,7 +547,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                         {/* Calendar Grid */}
                         <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
                             <div className="flex items-center justify-between p-5 border-b border-black/5">
-                                <h2 className="text-xl font-bold">{format(calendarMonth, 'MMMM yyyy')}</h2>
+                                <h2 className="text-xl font-bold">{format(calendarMonth, 'MMMM yyyy', { locale: lang === 'ar' ? ar : enUS })}</h2>
                                 <div className="flex items-center gap-1">
                                     <button onClick={handlePrevMonth} className="p-2 hover:bg-black/5 rounded-full transition-colors">
                                         <ChevronLeft className="w-5 h-5 text-black/60" />
@@ -549,7 +561,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             <div className="grid grid-cols-7 border-b border-black/5 bg-black/[0.02]">
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                                     <div key={day} className="py-3 text-center text-[10px] font-bold uppercase tracking-wider text-black/40">
-                                        {day}
+                                        {t(lang, 'days', day as any)}
                                     </div>
                                 ))}
                             </div>
@@ -581,7 +593,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                                 <div className="flex flex-col gap-[2px] w-full overflow-hidden text-left mt-0.5">
                                                     {dayBookings.slice(0, 3).map(b => (
                                                         <div key={b.id} className={cn('text-[8px] sm:text-[9px] leading-tight font-semibold truncate px-1 py-[2px] sm:py-0.5 rounded-[3px]', ROOM_COLORS[b.room_id] || 'bg-black/5 text-black')}>
-                                                            {format(parseISO(b.start_time), 'H:mm')} {b.room_name}
+                                                            {format(parseISO(b.start_time), 'H:mm')} {t(lang, 'rooms', b.room_name as any) || b.room_name}
                                                         </div>
                                                     ))}
                                                     {dayBookings.length > 3 && (
@@ -602,7 +614,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             <div className="space-y-6">
                                 <h3 className="text-xl font-bold flex items-center gap-2">
                                     <CalendarDays className="w-5 h-5 text-black/40" />
-                                    {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+                                    {format(selectedDate, 'EEEE, MMMM d, yyyy', { locale: lang === 'ar' ? ar : enUS })}
                                 </h3>
                                 
                                 {/* Room Selection Cards */}
@@ -621,7 +633,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                                     isSelected ? 'border-black bg-white shadow-xl scale-[1.02]' : 'border-black/5 bg-white hover:border-black/20 hover:bg-black/[0.01]'
                                                 )}
                                             >
-                                                <h4 className="font-bold mb-1">{room.name}</h4>
+                                                <h4 className="font-bold mb-1">{t(lang, 'rooms', room.name as any) || room.name}</h4>
                                                 <p className={cn('text-sm font-medium px-2 py-0.5 rounded-md inline-block', roomBookings.length > 0 ? room.color : 'bg-black/5 text-black/40')}>
                                                     {roomBookings.length} booking{roomBookings.length !== 1 ? 's' : ''}
                                                 </p>
@@ -657,10 +669,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                                     <div key={b.id} className={cn("relative bg-white rounded-2xl border border-black/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 transition-opacity", past && 'opacity-50')}>
                                                         <div className="flex items-center gap-1.5 text-sm font-bold w-32 shrink-0">
                                                             <Clock className="w-3.5 h-3.5 text-black/40" />
-                                                            {format(parseISO(b.start_time), 'h:mm a')}
+                                                            {format(parseISO(b.start_time), 'h:mm a', { locale: lang === 'ar' ? ar : enUS })}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 text-sm font-bold w-32 shrink-0 text-black/40">
-                                                            {format(parseISO(b.end_time), 'h:mm a')}
+                                                            {format(parseISO(b.end_time), 'h:mm a', { locale: lang === 'ar' ? ar : enUS })}
                                                         </div>
                                                         <div className="flex items-center gap-2 text-sm font-medium text-black/80 min-w-0">
                                                             <User className="w-4 h-4 text-black/30 shrink-0" />
@@ -697,31 +709,24 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             </main>
 
             {/* Confirm delete modal */}
-            <AnimatePresence>
-                {confirmDelete && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setConfirmDelete(null)}
-                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 16 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="relative bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
-                        >
+            {confirmDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+                    <div
+                        onClick={() => setConfirmDelete(null)}
+                        className="absolute inset-0 bg-black/70"
+                    />
+                    <div
+                        className="relative bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+                    >
                             <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-5">
                                 <Trash2 className="w-6 h-6 text-red-500" />
                             </div>
-                            <h3 className="text-xl font-bold mb-2">Cancel this booking?</h3>
+                            <h3 className="text-xl font-bold mb-2">{t(lang, 'admin', 'cancelThisBooking')}</h3>
                             <p className="text-black/50 text-sm mb-1">
-                                <strong>{confirmDelete.room_name}</strong>
+                                <strong>{t(lang, 'rooms', confirmDelete.room_name as any) || confirmDelete.room_name}</strong>
                             </p>
                             <p className="text-black/50 text-sm mb-1">
-                                {format(parseISO(confirmDelete.start_time), 'EEE, MMM d · h:mm a')}
+                                {format(parseISO(confirmDelete.start_time), 'EEE, MMM d · h:mm a', { locale: lang === 'ar' ? ar : enUS })}
                             </p>
                             <p className="text-black/50 text-sm mb-6">
                                 {confirmDelete.user_name} {confirmDelete.phone && `· ${confirmDelete.phone}`}
@@ -750,24 +755,18 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                     )}
                                 </button>
                             </div>
-                        </motion.div>
+                        </div>
                     </div>
                 )}
 
                 {/* Settings Modal */}
                 {showSettings && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
+                        <div
                             onClick={() => !savingPassword && setShowSettings(false)}
-                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                            className="absolute inset-0 bg-black/70"
                         />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 16 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
+                        <div
                             className="relative bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
                         >
                             <div className="flex items-center justify-between mb-6">
@@ -828,10 +827,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             </div>
 
 
-                        </motion.div>
+                        </div>
                     </div>
                 )}
-            </AnimatePresence>
         </div>
     );
 }

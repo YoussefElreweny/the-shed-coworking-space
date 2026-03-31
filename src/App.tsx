@@ -14,7 +14,10 @@ import {
   Coffee,
   Monitor,
   Settings,
+  Globe,
 } from 'lucide-react';
+import { useLanguage } from './LanguageContext';
+import { t } from './translations';
 import {
   format,
   addMonths,
@@ -32,6 +35,7 @@ import {
   addHours,
   addMinutes,
 } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
 import { Room, Booking } from './types';
 import { cn } from './lib/utils';
 
@@ -64,7 +68,7 @@ const AMENITIES = [
   { icon: Wifi, label: 'High-Speed WiFi' },
   { icon: Coffee, label: 'Coffee & Tea' },
   { icon: Monitor, label: 'AV Equipment' },
-];
+] as const;
 
 export default function App() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -72,6 +76,8 @@ export default function App() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  const { lang, setLang } = useLanguage();
 
   // Booking modal state
   const [selectedSlots, setSelectedSlots] = useState<Date[]>([]);
@@ -83,104 +89,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
   const [contactStatus, setContactStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
-  // ── Image Carousel Component ──────────────────────────────────────────────
-  const RoomImageCarousel = ({ roomName, images }: { roomName: string, images: string[] }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [touchStart, setTouchStart] = useState<number | null>(null);
-    const [touchEnd, setTouchEnd] = useState<number | null>(null);
-
-    useEffect(() => {
-      // Manual-only image swapping (autoplay removed per user request)
-    }, [images.length]);
-
-    const handleNext = (e?: React.MouseEvent) => {
-      e?.stopPropagation();
-      setCurrentIndex((prev) => (prev + 1) % images.length);
-    };
-
-    const handlePrev = (e?: React.MouseEvent) => {
-      e?.stopPropagation();
-      setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
-    };
-
-    const onTouchStart = (e: React.TouchEvent) => {
-      setTouchEnd(null); // otherwise the swipe is invalid
-      setTouchStart(e.targetTouches[0].clientX);
-    };
-
-    const onTouchMove = (e: React.TouchEvent) => {
-      setTouchEnd(e.targetTouches[0].clientX);
-    };
-
-    const onTouchEnd = () => {
-      if (!touchStart || !touchEnd) return;
-      const distance = touchStart - touchEnd;
-      const isLeftSwipe = distance > 50;
-      const isRightSwipe = distance < -50;
-      if (isLeftSwipe) {
-        handleNext();
-      }
-      if (isRightSwipe) {
-        handlePrev();
-      }
-    };
-
-    return (
-      <div 
-        className="relative w-full h-full group/carousel"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        <AnimatePresence mode="wait">
-          <motion.img
-            key={currentIndex}
-            src={images[currentIndex]}
-            alt={`${roomName} view ${currentIndex + 1}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            referrerPolicy="no-referrer"
-          />
-        </AnimatePresence>
-
-        {/* Controls */}
-        {images.length > 1 && (
-          <>
-            <div className="absolute inset-0 flex items-center justify-between p-2 opacity-0 group-hover/carousel:opacity-100 transition-opacity duration-300">
-              <button 
-                onClick={handlePrev}
-                className="w-8 h-8 rounded-full bg-black/30 text-white backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-8 h-8 rounded-full bg-black/30 text-white backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {/* Indicators */}
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10">
-              {images.map((_, idx) => (
-                <div 
-                  key={idx} 
-                  className={cn(
-                    "w-1.5 h-1.5 rounded-full transition-all duration-300",
-                    idx === currentIndex ? "bg-white w-3" : "bg-white/50"
-                  )}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+  // Removed RoomImageCarousel completely to optimize performance preventing heavy re-renders.
 
   // ── Refs for scrolling ──────────────────────────────────────────────────
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -211,9 +120,20 @@ export default function App() {
     fetch(`/api/bookings?start=${start}&end=${end}`)
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setBookings(data);
+        if (Array.isArray(data)) {
+          setBookings(data);
+        }
       });
   }, [currentMonth]);
+
+  // Pre-parse booking dates to drastically improve performance (solves the lag)
+  const parsedBookings = useMemo(() => {
+    return bookings.map((b) => ({
+      ...b,
+      startMs: parseISO(b.start_time).getTime(),
+      endMs: parseISO(b.end_time).getTime()
+    }));
+  }, [bookings]);
 
   // ── WebSocket for real-time updates ───────────────────────────────────────
   useEffect(() => {
@@ -261,11 +181,9 @@ export default function App() {
   const isSlotBooked = (time: Date) => {
     if (!selectedRoom) return false;
     const timeMs = time.getTime();
-    return bookings.some((b) => {
+    return parsedBookings.some((b) => {
       if (b.room_id !== selectedRoom.id) return false;
-      const startMs = parseISO(b.start_time).getTime();
-      const endMs = parseISO(b.end_time).getTime();
-      return timeMs >= startMs && timeMs < endMs;
+      return timeMs >= b.startMs && timeMs < b.endMs;
     });
   };
 
@@ -350,7 +268,7 @@ export default function App() {
       });
 
       if (hasShortRange) {
-        throw new Error('Each booking block must be at least 1 hour.');
+        throw new Error(t(lang, 'app', 'shortRangeError'));
       }
       
       // We'll perform all bookings. For simplicity, we'll do them sequentially.
@@ -370,7 +288,7 @@ export default function App() {
 
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(err.error || 'Booking failed');
+          throw new Error(err.error || t(lang, 'app', 'bookingFailed'));
         }
       }
 
@@ -382,7 +300,7 @@ export default function App() {
       }, 5000);
     } catch (err: any) {
       setBookingStatus('error');
-      setErrorMsg(err.message || 'Something went wrong. Please try again.');
+      setErrorMsg(err.message || t(lang, 'app', 'somethingWentWrong'));
       setTimeout(() => setBookingStatus('idle'), 4000);
     }
   };
@@ -390,44 +308,45 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDFCFB] text-[#1A1A1A] font-sans selection:bg-[#E6E6E6]">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-black/5">
+      <header className="sticky top-0 z-40 bg-white/95 border-b border-black/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/images/logo.jpg" alt="The Shed Logo" className="w-10 h-10 object-contain rounded-lg shadow-sm" />
             <div>
-              <h1 className="text-xl font-semibold tracking-tight leading-none">The Shed</h1>
-              <p className="text-xs text-black/40 tracking-wide">Coworking Space</p>
+              <h1 className="text-xl font-semibold tracking-tight leading-none">{t(lang, 'app', 'title')}</h1>
+              <p className="text-xs text-black/40 tracking-wide">{t(lang, 'app', 'subtitle')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm text-black/40">
             {AMENITIES.map(({ icon: Icon, label }) => (
               <span key={label} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-black/5 rounded-full">
                 <Icon className="w-3.5 h-3.5" />
-                {label}
+                {t(lang, 'amenities', label as "High-Speed WiFi" | "Coffee & Tea" | "AV Equipment")}
               </span>
             ))}
+            <button
+              onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/5 hover:bg-black/10 transition-colors rounded-full text-black font-semibold ml-2 cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              {lang === 'en' ? 'العربية' : 'English'}
+            </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        <AnimatePresence mode="wait">
           {/* ═══════════════════════════════════════════
               ROOMS GRID VIEW
           ═══════════════════════════════════════════ */}
           {!selectedRoom ? (
-            <motion.div
-              key="rooms-grid"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+            <div
               className="space-y-12"
             >
               <div className="max-w-2xl">
-                <h2 className="text-5xl font-bold tracking-tighter mb-4">Find your space.</h2>
+                <h2 className="text-5xl font-bold tracking-tighter mb-4">{t(lang, 'app', 'findSpace')}</h2>
                 <p className="text-xl text-black/60 leading-relaxed">
-                  Four unique environments designed for productivity, creativity, and collaboration.
-                  Book by the hour — it's that simple.
+                  {t(lang, 'app', 'description')}
                 </p>
               </div>
 
@@ -444,50 +363,43 @@ export default function App() {
                     }}
                   >
                     <div className="aspect-[16/10] overflow-hidden relative">
-                      <RoomImageCarousel 
-                        roomName={room.name} 
-                        images={ROOM_IMAGES[room.name] || [room.image_url]} 
-                      />
+                      <RoomImageCarousel images={ROOM_IMAGES[room.name] || [room.image_url]} name={room.name} />
                     </div>
                     <div className="p-8">
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <h3 className="text-2xl font-bold mb-1">{room.name}</h3>
+                          <h3 className="text-2xl font-bold mb-1">{t(lang, 'rooms', room.name as any) || room.name}</h3>
                           <div className="flex items-center gap-1.5 text-sm text-black/50">
                             <Users className="w-4 h-4" />
-                            <span>{room.capacity} people</span>
+                            <span>{room.capacity} {t(lang, 'app', 'people')}</span>
                           </div>
                         </div>
                         <div className="text-right shrink-0 ml-4">
                           {OLD_PRICES[room.name] && (
                             <span className="text-sm text-black/30 line-through block">
-                              {OLD_PRICES[room.name]} EGP
+                              {OLD_PRICES[room.name]} {t(lang, 'app', 'egp')}
                             </span>
                           )}
                           <span className="text-2xl font-bold">{room.price}</span>
-                          <span className="text-sm text-black/40"> EGP</span>
-                          <span className="text-sm text-black/40 block">/ hour</span>
+                          <span className="text-sm text-black/40"> {lang === 'ar' ? t(lang, 'app', 'egp') : 'EGP'}</span>
+                          <span className="text-sm text-black/40 block">{t(lang, 'app', 'egpHour')}</span>
                         </div>
                       </div>
-                      <p className="text-black/60 mb-8 line-clamp-2">{room.description}</p>
+                      <p className="text-black/60 mb-8 line-clamp-2">{t(lang, 'rooms', room.description as any) || room.description}</p>
                       <div className="flex items-center text-sm font-semibold group-hover:gap-2 transition-all">
-                        Book this room{' '}
-                        <ArrowRight className="w-4 h-4 ml-1 opacity-0 group-hover:opacity-100 transition-all" />
+                        {t(lang, 'app', 'bookRoom')}
+                        <ArrowRight className={cn("w-4 h-4 opacity-0 group-hover:opacity-100 transition-all", lang === 'ar' ? 'mr-1 rotate-180' : 'ml-1')} />
                       </div>
                     </div>
                   </motion.div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           ) : (
             /* ═══════════════════════════════════════════
                 BOOKING VIEW
             ═══════════════════════════════════════════ */
-            <motion.div
-              key="booking-view"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+            <div
               className="grid grid-cols-1 lg:grid-cols-12 gap-12"
             >
               {/* Left Column: Calendar */}
@@ -496,40 +408,42 @@ export default function App() {
                   onClick={() => setSelectedRoom(null)}
                   className="flex items-center gap-2 text-sm font-medium text-black/40 hover:text-black transition-colors"
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  Back to rooms
+                  <ChevronLeft className={cn("w-4 h-4", lang === 'ar' && 'rotate-180')} />
+                  {t(lang, 'app', 'backToRooms')}
                 </button>
 
                 {/* Room mini card */}
                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 sm:gap-6 p-4 sm:p-6 bg-white border border-black/5 rounded-2xl">
                   <div className="w-24 sm:w-32 h-20 rounded-xl shrink-0 overflow-hidden relative">
-                     <RoomImageCarousel 
-                        roomName={selectedRoom.name} 
-                        images={ROOM_IMAGES[selectedRoom.name] || [selectedRoom.image_url]} 
-                      />
+                    <img 
+                      src={ROOM_IMAGES[selectedRoom.name]?.[0] || selectedRoom.image_url} 
+                      alt={selectedRoom.name} 
+                      className="absolute inset-0 w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
                   <div className="flex-1 min-w-[150px]">
-                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight line-clamp-1">{selectedRoom.name}</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight line-clamp-1">{t(lang, 'rooms', selectedRoom.name as any) || selectedRoom.name}</h2>
                     <div className="flex items-center gap-4 text-sm text-black/50 mt-1">
                       <span className="flex items-center gap-1.5">
-                        <Users className="w-4 h-4" /> {selectedRoom.capacity} people
+                        <Users className="w-4 h-4" /> {selectedRoom.capacity} {t(lang, 'app', 'people')}
                       </span>
                     </div>
                   </div>
                   <div className="w-full sm:w-auto text-right shrink-0 mt-1 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-black/5">
                     {OLD_PRICES[selectedRoom.name] && (
                       <span className="text-xs text-black/30 line-through block mb-0.5">
-                        {OLD_PRICES[selectedRoom.name]} EGP
+                        {OLD_PRICES[selectedRoom.name]} {t(lang, 'app', 'egp')}
                       </span>
                     )}
                     <span className="text-2xl font-bold">{selectedRoom.price}</span>
-                    <span className="text-sm text-black/40"> EGP / hr</span>
+                    <span className="text-sm text-black/40"> {lang === 'ar' ? t(lang, 'app', 'egp') : 'EGP'} / {lang === 'ar' ? 'ساعة' : 'hr'}</span>
                   </div>
                 </div>
 
                 {/* Month navigation */}
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{format(currentMonth, 'MMMM yyyy')}</h3>
+                  <h3 className="text-lg font-semibold">{format(currentMonth, 'MMMM yyyy', { locale: lang === 'ar' ? ar : enUS })}</h3>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
@@ -553,7 +467,7 @@ export default function App() {
                       key={day}
                       className="text-center text-xs font-bold uppercase tracking-widest text-black/30 py-3"
                     >
-                      {day}
+                      {t(lang, 'days', day as any)}
                     </div>
                   ))}
 
@@ -600,15 +514,15 @@ export default function App() {
                         <CalendarIcon className="w-8 h-8 text-black/20" />
                       </div>
                       <div>
-                        <h3 className="font-bold">Select a date</h3>
-                        <p className="text-sm text-black/40">Choose a day to see available slots</p>
+                        <h3 className="font-bold">{t(lang, 'app', 'selectDate')}</h3>
+                        <p className="text-sm text-black/40">{t(lang, 'app', 'chooseDay')}</p>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-5">
                       <div>
-                        <h3 className="text-xl font-bold mb-1">{format(selectedDate, 'EEEE, MMM do')}</h3>
-                        <p className="text-sm text-black/40">Tap a slot to book it</p>
+                        <h3 className="text-xl font-bold mb-1">{format(selectedDate, 'EEEE, MMM do', { locale: lang === 'ar' ? ar : enUS })}</h3>
+                        <p className="text-sm text-black/40">{t(lang, 'app', 'tapSlot')}</p>
                       </div>
 
                       <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
@@ -639,19 +553,19 @@ export default function App() {
                                 <Clock className={cn("w-4 h-4", isSelected ? "opacity-100" : "opacity-40 group-hover:opacity-100")} />
                                 <div>
                                   <span className="font-semibold text-sm">
-                                    {format(slot, 'h:mm a')} – {format(endSlot, 'h:mm a')}
+                                    {format(slot, 'h:mm a', { locale: lang === 'ar' ? ar : enUS })} – {format(endSlot, 'h:mm a', { locale: lang === 'ar' ? ar : enUS })}
                                   </span>
                                 </div>
                               </div>
                               {isBooked ? (
                                 <span className="text-[10px] font-bold uppercase tracking-wider bg-black/10 px-2 py-1 rounded">
-                                  Reserved
+                                  {t(lang, 'app', 'reserved')}
                                 </span>
                               ) : isSelected ? (
                                 <CheckCircle2 className="w-4 h-4 text-white" />
                               ) : (
                                 <span className="text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                  Select
+                                  {t(lang, 'app', 'select')}
                                 </span>
                               )}
                             </button>
@@ -667,7 +581,7 @@ export default function App() {
                         >
                           {selectedSlots.length < 2 && (
                             <p className="text-xs text-red-500 font-medium text-center bg-red-50 py-2 rounded-lg">
-                              Minimum booking is 1 hour (2 slots)
+                              {t(lang, 'app', 'minBooking')}
                             </p>
                           )}
                           <button
@@ -675,7 +589,7 @@ export default function App() {
                             disabled={selectedSlots.length < 2}
                             className="w-full py-4 bg-black text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl disabled:opacity-40 disabled:hover:scale-100"
                           >
-                            Book {selectedSlots.length * 0.5} Hours
+                            {t(lang, 'app', 'bookHours', { hours: selectedSlots.length * 0.5 })}
                           </button>
                         </motion.div>
                       )}
@@ -683,31 +597,23 @@ export default function App() {
                   )}
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </main>
 
       {/* ══════════════════════════════════════════════
           BOOKING MODAL
       ══════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {isModalOpen && selectedSlots.length > 0 && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeModal}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
+      {isModalOpen && selectedSlots.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div
+            onClick={closeModal}
+            className="absolute inset-0 bg-black/70"
+          />
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-[40px] p-10 shadow-2xl"
-            >
+          <div
+            className="relative w-full max-w-md bg-white rounded-[40px] p-10 shadow-2xl"
+          >
               <button
                 onClick={closeModal}
                 className="absolute top-8 right-8 p-2 hover:bg-black/5 rounded-full transition-colors"
@@ -720,20 +626,20 @@ export default function App() {
                   <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
                     <CheckCircle2 className="w-8 h-8 text-emerald-600" />
                   </div>
-                  <h3 className="text-2xl font-bold">Booking Confirmed!</h3>
+                  <h3 className="text-2xl font-bold">{t(lang, 'app', 'bookingConfirmed')}</h3>
                   <p className="text-black/50">
-                    Your sessions in <strong>{selectedRoom?.name}</strong> have been reserved for <strong>{userName}</strong>.
+                    {t(lang, 'app', 'sessionsReserved')} <strong>{t(lang, 'rooms', selectedRoom?.name as any) || selectedRoom?.name}</strong> {t(lang, 'app', 'haveBeenReserved')} <strong>{userName}</strong>.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-7">
                   <div>
-                    <h3 className="text-3xl font-bold tracking-tight mb-1">Almost there.</h3>
+                    <h3 className="text-3xl font-bold tracking-tight mb-1">{t(lang, 'app', 'almostThere')}</h3>
                     <div className="text-black/50 text-sm space-y-1">
-                      <p>Booking <strong>{selectedRoom?.name}</strong> for:</p>
+                      <p>{t(lang, 'app', 'bookingFor')} <strong>{t(lang, 'rooms', selectedRoom?.name as any) || selectedRoom?.name}</strong> {t(lang, 'app', 'for')}</p>
                       {getBookingRanges(selectedSlots).map((range, idx) => (
                         <p key={idx} className="font-semibold text-black">
-                          {format(range.start, 'EEE, MMM do')} · {format(range.start, 'h:mm a')} – {format(range.end, 'h:mm a')}
+                          {format(range.start, 'EEE, d MMM', { locale: lang === 'ar' ? ar : enUS })} · {format(range.start, 'h:mm a', { locale: lang === 'ar' ? ar : enUS })} – {format(range.end, 'h:mm a', { locale: lang === 'ar' ? ar : enUS })}
                         </p>
                       ))}
                     </div>
@@ -743,14 +649,14 @@ export default function App() {
                     {/* Name */}
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
-                        Full Name
+                        {t(lang, 'app', 'fullName')}
                       </label>
                       <input
                         autoFocus
                         type="text"
                         value={userName}
                         onChange={(e) => setUserName(e.target.value)}
-                        placeholder="e.g. Sarah Ahmed"
+                        placeholder={t(lang, 'app', 'namePlaceholder')}
                         className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
                       />
                     </div>
@@ -758,16 +664,16 @@ export default function App() {
                     {/* Phone */}
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
-                        Phone Number
+                        {t(lang, 'app', 'phone')}
                       </label>
                       <div className="relative">
-                        <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+                        <Phone className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-black/30", lang === 'ar' ? "right-5" : "left-5")} />
                         <input
                           type="tel"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="e.g. 010 1234 5678"
-                          className="w-full pl-12 pr-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
+                          placeholder={t(lang, 'app', 'phonePlaceholder')}
+                          className={cn("w-full py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium", lang === 'ar' ? "pr-12 pl-5" : "pl-12 pr-5")}
                         />
                       </div>
                     </div>
@@ -788,19 +694,17 @@ export default function App() {
                     {bookingStatus === 'loading' ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Confirming…
+                        {t(lang, 'app', 'confirming')}
                       </>
                     ) : (
-                      'Confirm Booking'
+                      t(lang, 'app', 'confirmBooking')
                     )}
                   </button>
                 </div>
               )}
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
-
       {/* ══════════════════════════════════════════════
           SHARED AREA SECTION
       ══════════════════════════════════════════════ */}
@@ -816,23 +720,23 @@ export default function App() {
 
             <div className="relative z-10 max-w-2xl">
               <span className="inline-block px-4 py-1.5 bg-white/10 rounded-full text-xs font-bold uppercase tracking-widest mb-6">
-                No Booking Required
+                {t(lang, 'app', 'noBookingRequired')}
               </span>
               <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-                Shared Area
+                {t(lang, 'app', 'sharedArea')}
               </h2>
               <p className="text-lg text-white/60 mb-10 leading-relaxed">
-                Looking for a more flexible way to work? Our Shared Area is perfect for digital nomads and students. Just walk in, find a spot, and focus.
+                {t(lang, 'app', 'sharedAreaDesc')}
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
-                  <div className="text-sm text-white/40 mb-1">Hourly Rate</div>
-                  <div className="text-3xl font-bold">25 EGP <span className="text-sm font-normal text-white/40">/ hr</span></div>
+                  <div className="text-sm text-white/40 mb-1">{t(lang, 'app', 'hourlyRate')}</div>
+                  <div className="text-3xl font-bold">25 <span className="text-sm font-normal text-white/40">{t(lang, 'app', 'egp')} / {lang === 'ar' ? 'ساعة' : 'hr'}</span></div>
                 </div>
                 <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
-                  <div className="text-sm text-white/40 mb-1">Full Day Pass</div>
-                  <div className="text-3xl font-bold">140 EGP <span className="text-sm font-normal text-white/40">/ day</span></div>
+                  <div className="text-sm text-white/40 mb-1">{t(lang, 'app', 'fullDayPass')}</div>
+                  <div className="text-3xl font-bold">140 <span className="text-sm font-normal text-white/40">{t(lang, 'app', 'egp')} / {lang === 'ar' ? 'يوم' : 'day'}</span></div>
                 </div>
               </div>
             </div>
@@ -845,10 +749,9 @@ export default function App() {
         <section className="max-w-7xl mx-auto px-6 py-24 border-t border-black/5">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
             <div>
-              <h2 className="text-5xl font-bold tracking-tighter mb-6">Partner with us.</h2>
+              <h2 className="text-5xl font-bold tracking-tighter mb-6">{t(lang, 'app', 'partnerWithUs')}</h2>
               <p className="text-xl text-black/60 leading-relaxed mb-8">
-                Looking for a long-term partnership or have a special offer for your organization? 
-                We're always open to collaborating with like-minded individuals and teams.
+                {t(lang, 'app', 'partnerDesc')}
               </p>
             </div>
 
@@ -892,37 +795,37 @@ export default function App() {
               >
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
-                    Your Name or Organization
+                    {t(lang, 'app', 'contactName')}
                   </label>
                   <input
                     name="name"
                     required
                     type="text"
-                    placeholder="e.g. Acme Corp"
+                    placeholder={t(lang, 'app', 'contactNamePlaceholder')}
                     className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
-                    Email Address
+                    {t(lang, 'app', 'contactEmail')}
                   </label>
                   <input
                     name="email"
                     required
                     type="email"
-                    placeholder="hello@example.com"
+                    placeholder={t(lang, 'app', 'contactEmailPlaceholder')}
                     className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-black/40 ml-1">
-                    How can we help?
+                    {t(lang, 'app', 'contactMessage')}
                   </label>
                   <textarea
                     name="message"
                     required
                     rows={4}
-                    placeholder="Describe your proposal or inquiry..."
+                    placeholder={t(lang, 'app', 'contactMessagePlaceholder')}
                     className="w-full px-5 py-4 bg-black/5 border border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-black transition-all text-base font-medium resize-none"
                   />
                 </div>
@@ -936,16 +839,16 @@ export default function App() {
                   {contactStatus === 'loading' ? (
                     <div className="flex items-center gap-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Sending...
+                      {t(lang, 'app', 'sending')}
                     </div>
                   ) : contactStatus === 'success' ? (
                     <div className="flex items-center gap-2 text-emerald-300">
                       <CheckCircle2 className="w-5 h-5" />
-                      Message Sent!
+                      {t(lang, 'app', 'messageSent')}
                     </div>
                   ) : (
                     <>
-                      Send Message
+                      {t(lang, 'app', 'sendMessage')}
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
@@ -1007,6 +910,71 @@ export default function App() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
       `}</style>
+    </div>
+  );
+}
+
+function RoomImageCarousel({ images, name }: { images: string[], name: string }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  if (!images || images.length === 0) return null;
+
+  return (
+    <div className="absolute inset-0 w-full h-full group/carousel">
+      <AnimatePresence initial={false}>
+        <motion.img
+          key={currentIndex}
+          src={images[currentIndex]}
+          alt={name}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          referrerPolicy="no-referrer"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+        />
+      </AnimatePresence>
+      
+      {images.length > 1 && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+          <button
+            onClick={prevImage}
+            className="p-1.5 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={nextImage}
+            className="p-1.5 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      
+      {images.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {images.map((_, idx) => (
+            <div
+              key={idx}
+              className={cn(
+                "w-1.5 h-1.5 rounded-full transition-colors",
+                idx === currentIndex ? "bg-white" : "bg-white/40"
+              )}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
