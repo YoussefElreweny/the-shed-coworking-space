@@ -733,6 +733,7 @@ export default function App() {
                 <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
                   <div className="text-sm text-white/40 mb-1">{t(lang, 'app', 'hourlyRate')}</div>
                   <div className="text-3xl font-bold">25 <span className="text-sm font-normal text-white/40">{t(lang, 'app', 'egp')} / {lang === 'ar' ? 'ساعة' : 'hr'}</span></div>
+                  <div className="text-[10px] uppercase tracking-wider text-white/40 mt-1 font-medium">{t(lang, 'app', 'billingNote')}</div>
                 </div>
                 <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
                   <div className="text-sm text-white/40 mb-1">{t(lang, 'app', 'fullDayPass')}</div>

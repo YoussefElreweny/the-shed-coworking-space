@@ -51,7 +51,8 @@ export const translations = {
       messageSent: "Message sent! We'll be in touch.",
       contactNamePlaceholder: "e.g. Acme Corp",
       contactEmailPlaceholder: "hello@example.com",
-      contactMessagePlaceholder: "Describe your proposal or inquiry..."
+      contactMessagePlaceholder: "Describe your proposal or inquiry...",
+      billingNote: "Any part of an hour is billed as a full hour."
     },
     rooms: {
       "Office Room": "Office Room",
@@ -164,7 +165,8 @@ export const translations = {
       messageSent: "تم إرسال الرسالة! سنتواصل معك قريبًا.",
       contactNamePlaceholder: "مثال: شركة النور",
       contactEmailPlaceholder: "hello@example.com",
-      contactMessagePlaceholder: "صف استفسارك أو مقترحك بالتفصيل..."
+      contactMessagePlaceholder: "صف استفسارك أو مقترحك بالتفصيل...",
+      billingNote: "كسر الساعة يُحسب ساعة كاملة."
     },
     rooms: {
       "Office Room": "غرفة المكتب",

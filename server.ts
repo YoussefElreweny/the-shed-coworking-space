@@ -44,216 +44,47 @@ async function startServer() {
     });
   };
 
-  // Seed rooms and admin if they don't exist
+  // ── Logging Middleware ─────────────────────────────────────────────────────
+  app.use((req, _res, next) => {
+    console.log(`${new Date().toISOString()} [${req.method}] ${req.url}`);
+    next();
+  });
+
+  // ── Functions ──────────────────────────────────────────────────────────────
+
   async function seedSystem() {
     console.log('🌱 Checking system seeding...');
-    
-    // 1. Seed Rooms
-    const { data: existingRooms } = await supabase.from('rooms').select('id').limit(1);
-    
-    if (!existingRooms || existingRooms.length === 0) {
-      console.log('📦 Seeding rooms...');
-      const rooms = [
-        { id: 1, name: 'Office Room', capacity: '1-3', price: 110, description: 'Modern space perfect for focused team sprints and client meetings.', image_url: '/images/room1.jpg' },
-        { id: 2, name: 'Shared Room', capacity: '15-20', price: 300, description: 'Cozy environment surrounded by books, ideal for creative brainstorming sessions.', image_url: '/images/room2.jpg' },
-        { id: 3, name: 'Meeting Room', capacity: '10-13', price: 200, description: 'Professional setup with high-end AV equipment, perfect for important presentations.', image_url: '/images/room3.jpg' },
-        { id: 4, name: 'Cordia Room', capacity: '8-10', price: 170, description: 'Private and quiet corner perfect for one-on-one sessions or deep focused work.', image_url: '/images/room4.jpg' }
-      ];
-      await supabase.from('rooms').insert(rooms);
-    }
+    try {
+      const { data: existingRooms } = await supabase.from('rooms').select('id').limit(1);
+      if (!existingRooms || existingRooms.length === 0) {
+        console.log('📦 Seeding rooms...');
+        const rooms = [
+          { id: 1, name: 'Office Room', capacity: '1-3', price: 110, description: 'Modern space perfect for focused team sprints and client meetings.', image_url: '/images/room1.jpg' },
+          { id: 2, name: 'Shared Room', capacity: '15-20', price: 300, description: 'Cozy environment surrounded by books, ideal for creative brainstorming sessions.', image_url: '/images/room2.jpg' },
+          { id: 3, name: 'Meeting Room', capacity: '10-13', price: 200, description: 'Professional setup with high-end AV equipment, perfect for important presentations.', image_url: '/images/room3.jpg' },
+          { id: 4, name: 'Cordia Room', capacity: '8-10', price: 170, description: 'Private and quiet corner perfect for one-on-one sessions or deep focused work.', image_url: '/images/room4.jpg' }
+        ];
+        await supabase.from('rooms').insert(rooms);
+      }
 
-    // 2. Seed Admin Password
-    const { data: existingPassword } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
-    if (!existingPassword) {
-      console.log('🔑 Seeding admin password...');
-      const defaultPassword = process.env.ADMIN_PASSWORD || 'shed-admin-2024';
-      const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
-      await supabase.from('admin_settings').insert({ key: 'admin_password', value: hashedPassword });
+      const { data: existingPassword } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+      if (!existingPassword) {
+        console.log('🔑 Seeding admin password...');
+        const defaultPassword = process.env.ADMIN_PASSWORD || 'shed-admin-2024';
+        const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
+        await supabase.from('admin_settings').insert({ key: 'admin_password', value: hashedPassword });
+      }
+      console.log('✅ Seeding check complete.');
+    } catch (err) {
+      console.error('❌ Seeding failed:', err);
     }
-    console.log('✅ Seeding check complete.');
   }
 
-  // ── Public API ──────────────────────────────────────────────────────────────
-
-  app.get('/api/rooms', async (_req, res) => {
-    const { data, error } = await supabase.from('rooms').select('*');
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-  });
-
-  app.get('/api/bookings', async (req, res) => {
-    const { start, end } = req.query;
-    if (!start || !end) return res.status(400).json({ error: 'start and end required' });
-    
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .gte('start_time', start)
-      .lte('start_time', end);
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-  });
-
-  app.post('/api/bookings', async (req, res) => {
-    const { room_id, user_name, phone, start_time, end_time } = req.body;
-    if (!room_id || !user_name || !start_time || !end_time) {
-      return res.status(400).json({ error: 'Missing required fields.' });
-    }
-
-    // Conflict Check
-    const { data: conflict, error: conflictError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('room_id', room_id)
-      .lt('start_time', end_time)
-      .gt('end_time', start_time)
-      .maybeSingle();
-
-    if (conflictError) return res.status(500).json({ error: conflictError.message });
-    if (conflict) return res.status(400).json({ error: 'This time slot is already booked.' });
-
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert({ room_id, user_name, phone: phone || null, start_time, end_time })
-      .select()
-      .single();
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    broadcast({ type: 'BOOKING_CREATED', booking: data });
-    res.status(201).json(data);
-  });
-
-  // ── Admin Auth ──────────────────────────────────────────────────────────────
-
-  app.post('/api/admin/login', async (req, res) => {
-    const { password } = req.body;
-    if (!password) {
-      return res.status(401).json({ error: 'Password required.' });
-    }
-
-    const { data, error } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'admin_password')
-      .single();
-    
-    if (error || !data || !bcrypt.compareSync(password, data.value)) {
-      return res.status(401).json({ error: 'Wrong password.' });
-    }
-
-    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    adminSessions.add(token);
-    res.json({ token });
-  });
-
-  app.post('/api/admin/logout', requireAdmin, (req, res) => {
-    const token = req.headers['x-admin-token'] as string;
-    adminSessions.delete(token);
-    res.json({ success: true });
-  });
-
-  app.post('/api/admin/password', requireAdmin, async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Missing current or new password.' });
-    }
-
-    const { data, error } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'admin_password')
-      .single();
-    
-    if (error || !data || !bcrypt.compareSync(currentPassword, data.value)) {
-      return res.status(400).json({ error: 'Incorrect current password.' });
-    }
-
-    const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
-    const { error: updateError } = await supabase
-      .from('admin_settings')
-      .update({ value: hashedNewPassword })
-      .eq('key', 'admin_password');
-    
-    if (updateError) return res.status(500).json({ error: updateError.message });
-    res.json({ success: true });
-  });
-
-  // ── Admin API (all protected) ───────────────────────────────────────────────
-
-  app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
-    const { room_id, date } = req.query;
-    let query = supabase
-      .from('bookings')
-      .select(`
-        id, user_name, phone, start_time, end_time,
-        rooms ( name, id )
-      `)
-      .order('start_time', { ascending: true });
-
-    if (room_id) query = query.eq('room_id', room_id);
-    if (date) {
-      // Postgres date check
-      query = query.gte('start_time', `${date}T00:00:00Z`).lte('start_time', `${date}T23:59:59Z`);
-    }
-
-    const { data, error } = await query;
-    if (error) return res.status(500).json({ error: error.message });
-    
-    // Flatten result to match frontend expectation
-    const flattened = (data as any[]).map(b => ({
-      ...b,
-      room_name: b.rooms.name,
-      room_id: b.rooms.id
-    }));
-
-    res.json(flattened);
-  });
-
-  app.delete('/api/admin/bookings/:id', requireAdmin, async (req, res) => {
-    const { id } = req.params;
-    const { error } = await supabase.from('bookings').delete().eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    
-    broadcast({ type: 'BOOKING_DELETED', bookingId: id });
-    res.json({ success: true });
-  });
-
-  app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    
-    const { count: total } = await supabase.from('bookings').select('*', { count: 'exact', head: true });
-    const { count: today } = await supabase.from('bookings').select('*', { count: 'exact', head: true })
-      .gte('start_time', `${todayStr}T00:00:00Z`).lte('start_time', `${todayStr}T23:59:59Z`);
-    const { count: upcoming } = await supabase.from('bookings').select('*', { count: 'exact', head: true })
-      .gte('start_time', new Date().toISOString());
-
-    res.json({ total: total || 0, today: today || 0, upcoming: upcoming || 0 });
-  });
-
-  // ── Vite / static ──────────────────────────────────────────────────────────
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static('dist'));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-    });
-  }
-
-  // ── Database Maintenance (Daily Snapshot) ──────────────────────────────────
   async function performMaintenance() {
     console.log('🧹 Running database maintenance...');
     try {
-      // Delete bookings older than 1 year (rolling)
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      
       const { error, count } = await supabase
         .from('bookings')
         .delete({ count: 'exact' })
@@ -270,19 +101,149 @@ async function startServer() {
     }
   }
 
-  // Initial Seed
-  await seedSystem();
-  
-  // Run maintenance on startup and every 24 hours
-  performMaintenance();
-  setInterval(performMaintenance, 1000 * 60 * 60 * 24);
+  // ── Public API ──────────────────────────────────────────────────────────────
 
+  app.get('/api/rooms', async (_req, res) => {
+    const { data, error } = await supabase.from('rooms').select('*');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
+
+  app.get('/api/bookings', async (req, res) => {
+    const { start, end } = req.query;
+    if (!start || !end) return res.status(400).json({ error: 'start and end required' });
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .gte('start_time', start)
+      .lte('start_time', end);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
+
+  app.post('/api/bookings', async (req, res) => {
+    const { room_id, user_name, phone, start_time, end_time } = req.body;
+    if (!room_id || !user_name || !start_time || !end_time) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    const { data: conflict, error: conflictError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('room_id', room_id)
+      .lt('start_time', end_time)
+      .gt('end_time', start_time)
+      .maybeSingle();
+    if (conflictError) return res.status(500).json({ error: conflictError.message });
+    if (conflict) return res.status(400).json({ error: 'This time slot is already booked.' });
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert({ room_id, user_name, phone: phone || null, start_time, end_time })
+      .select()
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    broadcast({ type: 'BOOKING_CREATED', booking: data });
+    res.status(201).json(data);
+  });
+
+  // ── Admin Auth ──────────────────────────────────────────────────────────────
+
+  app.post('/api/admin/login', async (req, res) => {
+    const { password } = req.body;
+    if (!password) return res.status(401).json({ error: 'Password required.' });
+    const { data, error } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+    if (error || !data || !bcrypt.compareSync(password, data.value)) {
+      return res.status(401).json({ error: 'Wrong password.' });
+    }
+    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    adminSessions.add(token);
+    res.json({ token });
+  });
+
+  app.post('/api/admin/logout', requireAdmin, (req, res) => {
+    const token = req.headers['x-admin-token'] as string;
+    adminSessions.delete(token);
+    res.json({ success: true });
+  });
+
+  app.post('/api/admin/password', requireAdmin, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Missing password.' });
+    const { data, error } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();
+    if (error || !data || !bcrypt.compareSync(currentPassword, data.value)) {
+      return res.status(400).json({ error: 'Incorrect current password.' });
+    }
+    const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+    const { error: updateError } = await supabase.from('admin_settings').update({ value: hashedNewPassword }).eq('key', 'admin_password');
+    if (updateError) return res.status(500).json({ error: updateError.message });
+    res.json({ success: true });
+  });
+
+  // ── Admin API ──────────────────────────────────────────────────────────────
+
+  app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
+    const { room_id, date } = req.query;
+    let query = supabase.from('bookings').select('id, user_name, phone, start_time, end_time, rooms ( name, id )').order('start_time', { ascending: true });
+    if (room_id) query = query.eq('room_id', room_id);
+    if (date) query = query.gte('start_time', `${date}T00:00:00Z`).lte('start_time', `${date}T23:59:59Z`);
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    const flattened = (data as any[]).map(b => ({ ...b, room_name: b.rooms.name, room_id: b.rooms.id }));
+    res.json(flattened);
+  });
+
+  app.delete('/api/admin/bookings/:id', requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase.from('bookings').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    broadcast({ type: 'BOOKING_DELETED', bookingId: id });
+    res.json({ success: true });
+  });
+
+  app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { count: total } = await supabase.from('bookings').select('*', { count: 'exact', head: true });
+    const { count: today } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).gte('start_time', `${todayStr}T00:00:00Z`).lte('start_time', `${todayStr}T23:59:59Z`);
+    const { count: upcoming } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).gte('start_time', new Date().toISOString());
+    res.json({ total: total || 0, today: today || 0, upcoming: upcoming || 0 });
+  });
+
+  // ── Vite / static ──────────────────────────────────────────────────────────
+  const distPath = path.resolve(__dirname, 'dist');
+  
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🚀 Starting Vite dev server...');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    console.log(`📂 Serving static files from: ${distPath}`);
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err) {
+          console.error('❌ Error sending index.html:', err);
+          res.status(500).send('Server Error: Build directory missing or index.html not found.');
+        }
+      });
+    });
+  }
+
+  // ── Start Listening ────────────────────────────────────────────────────────
   const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ The Shed server running on http://localhost:${PORT}`);
-    console.log(`🔑 Admin panel: http://localhost:${PORT}/admin`);
+    console.log(`✅ The Shed server running on port ${PORT}`);
+    console.log(`🔑 Admin panel: /admin`);
+    
+    // Background tasks
+    (async () => {
+      await seedSystem();
+      await performMaintenance();
+      setInterval(performMaintenance, 1000 * 60 * 60 * 24);
+    })();
   });
 }
 
 startServer();
-
