@@ -60,11 +60,14 @@ async function startServer() {
         console.log('📦 Seeding rooms...');
         const rooms = [
           { id: 1, name: 'Office Room', capacity: '1-3', price: 110, description: 'Modern space perfect for focused team sprints and client meetings.', image_url: '/images/room1.jpg' },
-          { id: 2, name: 'Shared Room', capacity: '15-20', price: 300, description: 'Cozy environment surrounded by books, ideal for creative brainstorming sessions.', image_url: '/images/room2.jpg' },
+          { id: 2, name: 'Willow Room', capacity: '15-20', price: 300, description: 'Cozy environment surrounded by books, ideal for creative brainstorming sessions.', image_url: '/images/room2.jpg' },
           { id: 3, name: 'Meeting Room', capacity: '10-13', price: 200, description: 'Professional setup with high-end AV equipment, perfect for important presentations.', image_url: '/images/room3.jpg' },
           { id: 4, name: 'Cordia Room', capacity: '8-10', price: 170, description: 'Private and quiet corner perfect for one-on-one sessions or deep focused work.', image_url: '/images/room4.jpg' }
         ];
         await supabase.from('rooms').insert(rooms);
+      } else {
+        // Migration: Update existing 'Shared Room' to 'Willow Room'
+        await supabase.from('rooms').update({ name: 'Willow Room' }).eq('name', 'Shared Room');
       }
 
       const { data: existingPassword } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();

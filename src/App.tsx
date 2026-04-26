@@ -42,7 +42,7 @@ import { cn } from './lib/utils';
 const OLD_PRICES: Record<string, number> = {
   'Cordia Room': 200,
   'Meeting Room': 240,
-  'Shared Room': 320,
+  'Willow Room': 320,
   'Office Room': 130,
 };
 
@@ -54,9 +54,9 @@ const ROOM_IMAGES: Record<string, string[]> = {
     '/images/meeting_room/2.jpg',
     '/images/meeting_room/3.jpg',
   ],
-  'Shared Room': [
+  'Willow Room': [
     '/images/room2.jpg',
-    '/images/shared_room/1.jpg'
+    '/images/willow_room/1.jpg'
   ],
   'Office Room': [
     '/images/office_room/1.jpg',

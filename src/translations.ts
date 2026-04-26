@@ -56,7 +56,7 @@ export const translations = {
     },
     rooms: {
       "Office Room": "Office Room",
-      "Shared Room": "Shared Room",
+      "Willow Room": "Willow Room",
       "Meeting Room": "Meeting Room",
       "Cordia Room": "Cordia Room",
       "Modern space perfect for focused team sprints and client meetings.": "Modern space perfect for focused team sprints and client meetings.",
@@ -170,7 +170,7 @@ export const translations = {
     },
     rooms: {
       "Office Room": "غرفة المكتب",
-      "Shared Room": "الغرفة المشتركة",
+      "Willow Room": "غرفة ويلو",
       "Meeting Room": "غرفة الاجتماعات",
       "Cordia Room": "غرفة كورديا",
       "Modern space perfect for focused team sprints and client meetings.": "مساحة عصرية مثالية لسباقات فرق العمل السريعة واجتماعات العملاء.",

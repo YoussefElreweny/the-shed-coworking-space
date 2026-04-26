@@ -83,7 +83,7 @@ const ROOM_COLORS: Record<number, string> = {
 
 const ROOMS = [
     { id: 1, name: 'Office Room', color: ROOM_COLORS[1] },
-    { id: 2, name: 'Shared Room', color: ROOM_COLORS[2] },
+    { id: 2, name: 'Willow Room', color: ROOM_COLORS[2] },
     { id: 3, name: 'Meeting Room', color: ROOM_COLORS[3] },
     { id: 4, name: 'Cordia Room', color: ROOM_COLORS[4] },
 ];
