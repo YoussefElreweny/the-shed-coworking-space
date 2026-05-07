@@ -118,8 +118,8 @@ async function startServer() {
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
-      .gte('start_time', start)
-      .lte('start_time', end);
+      .lt('start_time', end)
+      .gt('end_time', start);
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
   });
@@ -186,7 +186,9 @@ async function startServer() {
 
   app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
     const { room_id, date } = req.query;
-    let query = supabase.from('bookings').select('id, user_name, phone, start_time, end_time, rooms ( name, id )').order('start_time', { ascending: true });
+    let query = supabase.from('bookings').select('id, user_name, phone, start_time, end_time, rooms ( name, id )')
+      .not('user_name', 'ilike', 'INTERNAL:%')
+      .order('start_time', { ascending: true });
     if (room_id) query = query.eq('room_id', room_id);
     if (date) query = query.gte('start_time', `${date}T00:00:00Z`).lte('start_time', `${date}T23:59:59Z`);
     const { data, error } = await query;
@@ -205,9 +207,9 @@ async function startServer() {
 
   app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
     const todayStr = new Date().toISOString().slice(0, 10);
-    const { count: total } = await supabase.from('bookings').select('*', { count: 'exact', head: true });
-    const { count: today } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).gte('start_time', `${todayStr}T00:00:00Z`).lte('start_time', `${todayStr}T23:59:59Z`);
-    const { count: upcoming } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).gte('start_time', new Date().toISOString());
+    const { count: total } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).not('user_name', 'ilike', 'INTERNAL:%');
+    const { count: today } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).not('user_name', 'ilike', 'INTERNAL:%').gte('start_time', `${todayStr}T00:00:00Z`).lte('start_time', `${todayStr}T23:59:59Z`);
+    const { count: upcoming } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).not('user_name', 'ilike', 'INTERNAL:%').gte('start_time', new Date().toISOString());
     res.json({ total: total || 0, today: today || 0, upcoming: upcoming || 0 });
   });
 
