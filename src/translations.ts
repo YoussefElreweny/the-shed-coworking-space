@@ -52,7 +52,8 @@ export const translations = {
       contactNamePlaceholder: "e.g. Acme Corp",
       contactEmailPlaceholder: "hello@example.com",
       contactMessagePlaceholder: "Describe your proposal or inquiry...",
-      billingNote: "Any part of an hour is billed as a full hour."
+      billingNote: "Any part of an hour is billed as a full hour.",
+      startingFromEightHours: "Starting from 8 hours"
     },
     rooms: {
       "Office Room": "Office Room",
@@ -155,6 +156,7 @@ export const translations = {
       sharedAreaDesc: "تبحث عن طريقة أكثر مرونة للعمل؟ مساحة العمل المشتركة لدينا مثالية للطلاب والمستقلين. فقط احضر، اختر المكان المناسب، وركز في عملك.",
       hourlyRate: "سعر الساعة",
       fullDayPass: "تذكرة يوم كامل",
+      startingFromEightHours: "ابتداءً من 8 ساعات",
       partnerWithUs: "انضم إلينا كشريك.",
       partnerDesc: "هل تبحث عن شراكة طويلة الأمد أو لديك عرض خاص لمؤسستك؟ نحن منفتحون دائمًا للتعاون مع الأفراد والفرق ذات الرؤية المماثلة.",
       contactName: "اسمك",
