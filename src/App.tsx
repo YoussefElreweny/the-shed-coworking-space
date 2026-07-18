@@ -40,10 +40,10 @@ import { Room, Booking } from './types';
 import { cn } from './lib/utils';
 
 const OLD_PRICES: Record<string, number> = {
-  'Cordia Room': 200,
+  'Cordia Room': 250,
   'Meeting Room': 240,
   'Willow Room': 320,
-  'Office Room': 130,
+  'Office Room': 150,
 };
 
 const ROOM_IMAGES: Record<string, string[]> = {
