@@ -60,14 +60,25 @@ async function startServer() {
         console.log('📦 Seeding rooms...');
         const rooms = [
           { id: 1, name: 'Office Room', capacity: '1-3', price: 130, description: 'Modern space perfect for focused team sprints and client meetings.', image_url: '/images/room1.jpg' },
-          { id: 2, name: 'Willow Room', capacity: '15-20', price: 350, description: 'Cozy environment surrounded by books, ideal for creative brainstorming sessions.', image_url: '/images/room2.jpg' },
+          { id: 2, name: 'Willow Room', capacity: '20-25', price: 350, description: 'Cozy environment surrounded by books, ideal for creative brainstorming sessions.', image_url: '/images/room2.jpg' },
           { id: 3, name: 'Meeting Room', capacity: '10-13', price: 220, description: 'Professional setup with high-end AV equipment, perfect for important presentations.', image_url: '/images/room3.jpg' },
-          { id: 4, name: 'Cordia Room', capacity: '8-10', price: 220, description: 'Private and quiet corner perfect for one-on-one sessions or deep focused work.', image_url: '/images/room4.jpg' }
+          { id: 4, name: 'Cordia Room', capacity: '10-15', price: 220, description: 'Private and quiet corner perfect for one-on-one sessions or deep focused work.', image_url: '/images/room4.jpg' },
+          { id: 5, name: 'Acasia Room', capacity: '10-13', price: 300, description: 'Spacious and vibrant room suitable for workshops and team events.', image_url: '/images/acasia_room/1.jpg' }
         ];
         await supabase.from('rooms').insert(rooms);
       } else {
         // Migration: Update existing 'Shared Room' to 'Willow Room'
         await supabase.from('rooms').update({ name: 'Willow Room' }).eq('name', 'Shared Room');
+        
+        // Migration: Update Willow and Cordia capacity
+        await supabase.from('rooms').update({ capacity: '20-25' }).eq('name', 'Willow Room');
+        await supabase.from('rooms').update({ capacity: '10-15' }).eq('name', 'Cordia Room');
+        
+        // Migration: Add Acasia Room if it doesn't exist
+        const { data: acasia } = await supabase.from('rooms').select('id').eq('name', 'Acasia Room').maybeSingle();
+        if (!acasia) {
+          await supabase.from('rooms').insert({ id: 5, name: 'Acasia Room', capacity: '10-13', price: 300, description: 'Spacious and vibrant room suitable for workshops and team events.', image_url: '/images/acasia_room/1.jpg' });
+        }
       }
 
       const { data: existingPassword } = await supabase.from('admin_settings').select('value').eq('key', 'admin_password').single();

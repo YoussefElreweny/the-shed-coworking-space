@@ -60,10 +60,12 @@ export const translations = {
       "Willow Room": "Willow Room",
       "Meeting Room": "Meeting Room",
       "Cordia Room": "Cordia Room",
+      "Acasia Room": "Acasia Room",
       "Modern space perfect for focused team sprints and client meetings.": "Modern space perfect for focused team sprints and client meetings.",
       "Cozy environment surrounded by books, ideal for creative brainstorming sessions.": "Cozy environment surrounded by books, ideal for creative brainstorming sessions.",
       "Professional setup with high-end AV equipment, perfect for important presentations.": "Professional setup with high-end AV equipment, perfect for important presentations.",
-      "Private and quiet corner perfect for one-on-one sessions or deep focused work.": "Private and quiet corner perfect for one-on-one sessions or deep focused work."
+      "Private and quiet corner perfect for one-on-one sessions or deep focused work.": "Private and quiet corner perfect for one-on-one sessions or deep focused work.",
+      "Spacious and vibrant room suitable for workshops and team events.": "Spacious and vibrant room suitable for workshops and team events."
     },
     admin: {
       panel: "Admin Panel",
@@ -175,10 +177,12 @@ export const translations = {
       "Willow Room": "غرفة ويلو",
       "Meeting Room": "غرفة الاجتماعات",
       "Cordia Room": "غرفة كورديا",
+      "Acasia Room": "غرفة أكاسيا",
       "Modern space perfect for focused team sprints and client meetings.": "مساحة عصرية مثالية لسباقات فرق العمل السريعة واجتماعات العملاء.",
       "Cozy environment surrounded by books, ideal for creative brainstorming sessions.": "بيئة مريحة محاطة بالكتب، مثالية لجلسات العصف الذهني الإبداعية.",
       "Professional setup with high-end AV equipment, perfect for important presentations.": "إعداد احترافي مع معدات صوتية ومرئية عالية الجودة، مثالي للعروض التقديمية المهمة.",
-      "Private and quiet corner perfect for one-on-one sessions or deep focused work.": "زاوية خاصة وهادئة مثالية لجلسات فردية أو للعمل العميق المركز."
+      "Private and quiet corner perfect for one-on-one sessions or deep focused work.": "زاوية خاصة وهادئة مثالية لجلسات فردية أو للعمل العميق المركز.",
+      "Spacious and vibrant room suitable for workshops and team events.": "غرفة واسعة وحيوية مناسبة لورش العمل وفعاليات الفريق."
     },
     admin: {
       panel: "لوحة تحكم المسؤول",

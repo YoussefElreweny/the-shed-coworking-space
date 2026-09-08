@@ -44,6 +44,7 @@ const OLD_PRICES: Record<string, number> = {
   'Meeting Room': 250,
   'Willow Room': 400,
   'Office Room': 150,
+  'Acasia Room': 320,
 };
 
 const ROOM_IMAGES: Record<string, string[]> = {
@@ -61,6 +62,10 @@ const ROOM_IMAGES: Record<string, string[]> = {
   'Office Room': [
     '/images/office_room/1.jpg',
     '/images/room1.jpg'
+  ],
+  'Acasia Room': [
+    '/images/acasia_room/1.jpg',
+    '/images/acasia_room/2.jpg'
   ],
 };
 
@@ -530,23 +535,26 @@ export default function App() {
                           const fullSlot = setMinutes(setHours(selectedDate, slot.getHours()), slot.getMinutes());
                           const isBooked = isSlotBooked(fullSlot);
                           const isPast = isBefore(fullSlot, new Date());
+                          const isClosed = selectedRoom?.name === 'Acasia Room' && fullSlot.getHours() < 15;
                           const isSelected = selectedSlots.some(s => s.getTime() === fullSlot.getTime());
                           const endSlot = addMinutes(fullSlot, 30);
 
                           return (
                             <button
                               key={slot.toString()}
-                              disabled={isBooked || isPast}
+                              disabled={isBooked || isPast || isClosed}
                               onClick={() => toggleSlot(fullSlot)}
                               className={cn(
                                 'w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between group',
-                                isBooked
-                                  ? 'bg-black/5 border-transparent opacity-60 cursor-not-allowed'
-                                  : isPast
-                                    ? 'bg-black/5 border-transparent opacity-20 cursor-not-allowed'
-                                    : isSelected
-                                      ? 'bg-black border-black text-white shadow-lg scale-[1.02]'
-                                      : 'border-black/5 hover:border-black hover:bg-black hover:text-white'
+                                isClosed
+                                  ? 'bg-black/5 border-transparent opacity-30 cursor-not-allowed'
+                                  : isBooked
+                                    ? 'bg-black/5 border-transparent opacity-60 cursor-not-allowed'
+                                    : isPast
+                                      ? 'bg-black/5 border-transparent opacity-20 cursor-not-allowed'
+                                      : isSelected
+                                        ? 'bg-black border-black text-white shadow-lg scale-[1.02]'
+                                        : 'border-black/5 hover:border-black hover:bg-black hover:text-white'
                               )}
                             >
                               <div className="flex items-center gap-3">

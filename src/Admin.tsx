@@ -79,6 +79,7 @@ const ROOM_COLORS: Record<number, string> = {
     2: 'bg-amber-100 text-amber-700',
     3: 'bg-blue-100 text-blue-700',
     4: 'bg-emerald-100 text-emerald-700',
+    5: 'bg-rose-100 text-rose-700',
 };
 
 const ROOMS = [
@@ -86,6 +87,7 @@ const ROOMS = [
     { id: 2, name: 'Willow Room', color: ROOM_COLORS[2] },
     { id: 3, name: 'Meeting Room', color: ROOM_COLORS[3] },
     { id: 4, name: 'Cordia Room', color: ROOM_COLORS[4] },
+    { id: 5, name: 'Acasia Room', color: ROOM_COLORS[5] },
 ];
 
 // ── Login Screen ─────────────────────────────────────────────────────────────
