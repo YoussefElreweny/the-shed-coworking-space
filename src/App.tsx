@@ -38,6 +38,7 @@ import {
 import { ar, enUS } from 'date-fns/locale';
 import { Room, Booking } from './types';
 import { cn } from './lib/utils';
+import { getTimeSlots } from './lib/bookingHours';
 
 const OLD_PRICES: Record<string, number> = {
   'Cordia Room': 250,
@@ -173,15 +174,7 @@ export default function App() {
     [currentMonth]
   );
 
-  const timeSlots = useMemo(() => {
-    const slots = [];
-    // 9 AM to 12 AM (24:00) in 30-minute increments
-    for (let i = 9; i <= 23; i++) {
-      slots.push(setMinutes(setHours(new Date(), i), 0));
-      slots.push(setMinutes(setHours(new Date(), i), 30));
-    }
-    return slots;
-  }, []);
+  const timeSlots = useMemo(() => getTimeSlots(selectedDate), [selectedDate]);
 
   const isSlotBooked = (time: Date) => {
     if (!selectedRoom) return false;

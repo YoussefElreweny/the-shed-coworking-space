@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 import bcrypt from 'bcrypt';
+import { isWithinClosingHours } from './src/lib/bookingHours';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,6 +31,7 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
 // ── Start server ─────────────────────────────────────────────────────────────
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1); // Trust Render's proxy to get real client IPs
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
 
@@ -46,7 +48,14 @@ async function startServer() {
 
   // ── Logging Middleware ─────────────────────────────────────────────────────
   app.use((req, _res, next) => {
-    console.log(`${new Date().toISOString()} [${req.method}] ${req.url}`);
+    const isAdminRoute = req.url.startsWith('/api/admin');
+    if (isAdminRoute) {
+      const ip = req.ip || 'unknown';
+      const device = req.headers['user-agent'] || 'unknown';
+      console.log(`${new Date().toISOString()} [${req.method}] ${req.url} | IP: ${ip} | Device: ${device}`);
+    } else {
+      console.log(`${new Date().toISOString()} [${req.method}] ${req.url}`);
+    }
     next();
   });
 
@@ -140,15 +149,23 @@ async function startServer() {
     if (!room_id || !user_name || !start_time || !end_time) {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
+
+    const startDate = new Date(start_time);
+    const endDate = new Date(end_time);
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || endDate <= startDate) {
+      return res.status(400).json({ error: 'Invalid booking dates.' });
+    }
+    if (!isWithinClosingHours(startDate, endDate)) {
+      return res.status(400).json({ error: 'Bookings must end by 11 PM (October–April) or midnight (May–September), Cairo time.' });
+    }
     const { data: conflict, error: conflictError } = await supabase
       .from('bookings')
       .select('*')
       .eq('room_id', room_id)
       .lt('start_time', end_time)
-      .gt('end_time', start_time)
-      .maybeSingle();
+      .gt('end_time', start_time);
     if (conflictError) return res.status(500).json({ error: conflictError.message });
-    if (conflict) return res.status(400).json({ error: 'This time slot is already booked.' });
+    if (conflict && conflict.length > 0) return res.status(400).json({ error: 'This time slot is already booked.' });
 
     const { data, error } = await supabase
       .from('bookings')
@@ -210,8 +227,18 @@ async function startServer() {
 
   app.delete('/api/admin/bookings/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
+    const ip = req.ip || 'unknown';
+    const device = req.headers['user-agent'] || 'unknown';
+
+    // Read details before deletion; record a successful deletion only after it succeeds.
+    const { data: bookingToDelete } = await supabase.from('bookings').select('*, rooms(name)').eq('id', id).maybeSingle();
+
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
+    if (bookingToDelete) {
+      console.log(`🗑️ ADMIN DELETE | Booking: ${bookingToDelete.user_name} | Phone: ${bookingToDelete.phone} | Room: ${(bookingToDelete as any).rooms?.name} | Time: ${bookingToDelete.start_time} → ${bookingToDelete.end_time} | IP: ${ip} | Device: ${device}`);
+    }
+
     broadcast({ type: 'BOOKING_DELETED', bookingId: id });
     res.json({ success: true });
   });
