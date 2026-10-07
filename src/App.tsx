@@ -175,16 +175,13 @@ export default function App() {
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    // Winter hours (Oct–Apr): 9 AM to 11 PM. Summer hours (May–Sep): 9 AM to 12 AM.
-    const month = selectedDate.getMonth(); // 0-indexed: 0=Jan, 9=Oct, 3=Apr
-    const isWinter = month >= 9 || month <= 3; // Oct(9), Nov(10), Dec(11), Jan(0), Feb(1), Mar(2), Apr(3)
-    const maxHour = isWinter ? 22 : 23; // 22 = last slot starts at 10:30 PM (ends 11 PM), 23 = last slot starts at 11:30 PM (ends 12 AM)
-    for (let i = 9; i <= maxHour; i++) {
+    // 9 AM to 12 AM (24:00) in 30-minute increments
+    for (let i = 9; i <= 23; i++) {
       slots.push(setMinutes(setHours(new Date(), i), 0));
       slots.push(setMinutes(setHours(new Date(), i), 30));
     }
     return slots;
-  }, [selectedDate]);
+  }, []);
 
   const isSlotBooked = (time: Date) => {
     if (!selectedRoom) return false;

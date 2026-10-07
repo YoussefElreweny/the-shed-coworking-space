@@ -30,7 +30,6 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
 // ── Start server ─────────────────────────────────────────────────────────────
 async function startServer() {
   const app = express();
-  app.set('trust proxy', true); // Trust Render's proxy to get real client IPs
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
 
@@ -47,14 +46,7 @@ async function startServer() {
 
   // ── Logging Middleware ─────────────────────────────────────────────────────
   app.use((req, _res, next) => {
-    const isAdminRoute = req.url.startsWith('/api/admin');
-    if (isAdminRoute) {
-      const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
-      const device = req.headers['user-agent'] || 'unknown';
-      console.log(`${new Date().toISOString()} [${req.method}] ${req.url} | IP: ${ip} | Device: ${device}`);
-    } else {
-      console.log(`${new Date().toISOString()} [${req.method}] ${req.url}`);
-    }
+    console.log(`${new Date().toISOString()} [${req.method}] ${req.url}`);
     next();
   });
 
@@ -148,22 +140,15 @@ async function startServer() {
     if (!room_id || !user_name || !start_time || !end_time) {
       return res.status(400).json({ error: 'Missing required fields.' });
     }
-
-    // Winter hours validation (Oct–Apr): no bookings ending after 11 PM
-    const endDate = new Date(end_time);
-    const month = endDate.getMonth(); // 0-indexed
-    const isWinter = month >= 9 || month <= 3;
-    if (isWinter && endDate.getHours() >= 23) {
-      return res.status(400).json({ error: 'Winter hours: bookings only available until 11 PM (October–April).' });
-    }
     const { data: conflict, error: conflictError } = await supabase
       .from('bookings')
       .select('*')
       .eq('room_id', room_id)
       .lt('start_time', end_time)
-      .gt('end_time', start_time);
+      .gt('end_time', start_time)
+      .maybeSingle();
     if (conflictError) return res.status(500).json({ error: conflictError.message });
-    if (conflict && conflict.length > 0) return res.status(400).json({ error: 'This time slot is already booked.' });
+    if (conflict) return res.status(400).json({ error: 'This time slot is already booked.' });
 
     const { data, error } = await supabase
       .from('bookings')
@@ -225,15 +210,6 @@ async function startServer() {
 
   app.delete('/api/admin/bookings/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
-    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
-    const device = req.headers['user-agent'] || 'unknown';
-
-    // Log the booking details BEFORE deleting so we have a record
-    const { data: bookingToDelete } = await supabase.from('bookings').select('*, rooms(name)').eq('id', id).maybeSingle();
-    if (bookingToDelete) {
-      console.log(`🗑️ ADMIN DELETE | Booking: ${bookingToDelete.user_name} | Phone: ${bookingToDelete.phone} | Room: ${(bookingToDelete as any).rooms?.name} | Time: ${bookingToDelete.start_time} → ${bookingToDelete.end_time} | IP: ${ip} | Device: ${device}`);
-    }
-
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
     broadcast({ type: 'BOOKING_DELETED', bookingId: id });
